@@ -13,7 +13,7 @@ Uses data from www.thetvdb.com via tvdb_api
 """
 
 __author__ = "dbr/Ben"
-__version__ = "1.0"
+__version__ = "1.2.2"
 
 import os, sys, re
 from optparse import OptionParser
@@ -132,9 +132,9 @@ def processNames(names, verbose=False):
     """
     allEps = []
     for f in names:
-        allEps.append(
-            processSingleName(f, verbose=verbose)
-        )
+        cur = processSingleName(f, verbose=verbose)
+        if cur is not None:
+            allEps.append(cur)
     return allEps
 #end processNames
 
@@ -209,7 +209,7 @@ def processFile(t, opts, cfile):
             "! Warning: Error contacting www.thetvdb.com:\n%s\n" % (errormsg)
         )
 
-        cfile['seriesname'] = t[ cfile['file_seriesname'] ]['seriesname']
+        cfile['seriesname'] = cfile['file_seriesname']
         cfile['epname'] = None
     except tvdb_userabort, errormsg:
         # User aborted selection (q or ^c)

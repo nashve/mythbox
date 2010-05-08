@@ -7,11 +7,21 @@ I'd like to thank the following people for their help:
 
 * Ana Guerrero, for maintaining the official debian package.
 
-* Tero Saarni, for the series 60 GUI and a lot of testing and
-  debugging.
-
 * H. Turgut Uyar for a number of bug reports and a lot of work on
   the test-suite.
+
+* Adeodato Simó for a bug report about the new imdb.com layout.
+
+* Josh Harding for a bug report about the new imdb.com layout.
+
+* Xavier Naidoo for a bug report about top250 and BeautifulSoup.
+
+* Basil Shubin for hints about a new helper function.
+
+* Mark Jeffery, for some help debugging a lxml bug.
+
+* Tero Saarni, for the series 60 GUI and a lot of testing and
+  debugging.
 
 * Hieu Nguyen for a bug report about fetching real imdbIDs.
 
@@ -20,6 +30,8 @@ I'd like to thank the following people for their help:
 * Jesper Nøhr for a lot of testing, especially on 'sql'.
 
 * James Rubino for many bug reports.
+
+* Cesare Lasorella for a bug report about newer versions of SQLObject.
 
 * Andre LeBlanc for a bug report about airing date of tv series episodes.
 

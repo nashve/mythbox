@@ -1,23 +1,27 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-Connector/Python, native MySQL driver written in Python.
-Copyright 2009 Sun Microsystems, Inc. All rights reserved. Use is subject to license terms.
+# MySQL Connector/Python - MySQL driver written in Python.
+# Copyright 2009 Sun Microsystems, Inc. All rights reserved
+# Use is subject to license terms. (See COPYING)
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-"""
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation.
+# 
+# There are special exceptions to the terms and conditions of the GNU
+# General Public License as it is applied to this software. View the
+# full text of the exception in file EXCEPTIONS-CLIENT in the directory
+# of this software distribution or see the FOSS License Exception at
+# www.mysql.com.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
 """
 
@@ -29,18 +33,18 @@ To install MySQL Connector/Python:
 
 from distutils.core import setup
 import sys
-from mysql.connector._version import version as mysql_connector_version
+import metasetupinfo
 
-_name = 'MySQL Connector/Python'
-_version = '%d.%d.%d' % mysql_connector_version[0:3]
-_packages = ['mysql','mysql.connector']
-    
 setup(
-    name = _name,
-    version = _version,
-    author = 'Geert Vanderkelen',
-    author_email = 'geert@mysql.com',
-    url = 'http://dev.mysql.com/usingmysql/python/',
-    download_url = 'http://dev.mysql.com/downloads/connector/python/',
-    packages = _packages
+    name = metasetupinfo.name,
+    version = metasetupinfo.version,
+    description = metasetupinfo.description,
+    long_description = metasetupinfo.long_description,
+    author = metasetupinfo.author,
+    author_email = metasetupinfo.author_email,
+    license = metasetupinfo.license,
+    keywords = metasetupinfo.keywords,
+    url = metasetupinfo.url,
+    download_url = metasetupinfo.download_url,
+    packages = metasetupinfo.packages,
 )

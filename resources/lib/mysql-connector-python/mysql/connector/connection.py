@@ -1,28 +1,34 @@
-# -*- coding: utf-8 -*-
+# MySQL Connector/Python - MySQL driver written in Python.
+# Copyright 2009 Sun Microsystems, Inc. All rights reserved
+# Use is subject to license terms. (See COPYING)
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation.
+# 
+# There are special exceptions to the terms and conditions of the GNU
+# General Public License as it is applied to this software. View the
+# full text of the exception in file EXCEPTIONS-CLIENT in the directory
+# of this software distribution or see the FOSS License Exception at
+# www.mysql.com.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+"""Implementing communication to MySQL servers
 """
-Connector/Python, native MySQL driver written in Python.
-Copyright 2009 Sun Microsystems, Inc. All rights reserved. Use is subject to license terms.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+import socket
+import os
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-"""
-
-import socket, string, os
-
-import protocol, conversion
-from errors import *
-import utils
+import protocol
+import errors
 from constants import CharacterSet
 
 class MySQLBaseConnection(object):
@@ -33,20 +39,25 @@ class MySQLBaseConnection(object):
       MySQLTCPConnection
       MySQLUNIXConnection
     """
-    sock = None # holds the socket connection
-    connection_timeout = None
-    protocol = None
-    socket_flags = 0
-    
     def __init__(self, prtcls=None):
+        self.sock = None # holds the socket connection
+        self.connection_timeout = None
+        self.protocol = None
+        self.socket_flags = 0
         try:
             self.protocol = prtcls(self)
         except:
-            self.protocol = protocol.MySQLBaseProtocol(self)
+            self.protocol = protocol.MySQLProtocol(self)
         self._set_socket_flags()
         
     def open_connection(self):
         pass
+    
+    def close_connection(self):
+        try:
+            self.sock.close()
+        except:
+            pass
 
     def send(self, buf):
         """
@@ -56,8 +67,22 @@ class MySQLBaseConnection(object):
         try:
             while pktlen:
                 pktlen -= self.sock.send(buf)
-        except socket.timeout, errmsg:
-            raise InterfaceError('Timed out reading from socket.')
+        except Exception, e:
+            raise errors.OperationalError('%s' % e)
+
+#    def recv(self):
+#        """
+#        Receive packets using the socket from the server.
+#        """
+#        try:
+#            header = self.sock.recv(4, self.socket_flags)
+#            (pktsize, pktnr) = self.protocol.handle_header(header)
+#            buf = header + self.sock.recv(pktsize, self.socket_flags)
+#            self.protocol.is_error(buf)
+#        except:
+#            raise
+#
+#        return (buf, pktsize, pktnr)
 
     def recv(self):
         """
@@ -71,8 +96,8 @@ class MySQLBaseConnection(object):
             buf = header + self.recv_all(self.sock, pktsize)
             #print('buflen=%d pktsize=%d pktnr=%d sum=%d' % (len(buf), pktsize, pktnr, pktsize + 4))
             self.protocol.is_error(buf)
-        except socket.timeout, errmsg:
-            raise InterfaceError('Timed out reading from socket.')
+        except: # socket.timeout, errmsg:
+            raise # InterfaceError('Timed out reading from socket.')
 
         return (buf, pktsize, pktnr)
 
@@ -103,7 +128,7 @@ class MySQLBaseConnection(object):
         try:
             self.protocol = prtcls(self, self.protocol.handshake)
         except:
-            self.protocol = protocol.MySQLBaseProtocol(self)
+            self.protocol = protocol.MySQLProtocol(self)
     
     def set_connection_timeout(self, timeout):
         self.connection_timeout = timeout
@@ -123,11 +148,7 @@ class MySQLBaseConnection(object):
 class MySQLUnixConnection(MySQLBaseConnection):
     """Opens a connection through the UNIX socket of the MySQL Server."""
     
-    unix_socket = None # Path to the MySQL server's UNIX socket
-    
     def __init__(self, prtcls=None,unix_socket='/tmp/mysql.sock'):
-        """Initializing"""
-        
         MySQLBaseConnection.__init__(self, prtcls=prtcls)
         self.unix_socket = unix_socket
         self.socket_flags = socket.MSG_WAITALL
@@ -138,10 +159,8 @@ class MySQLUnixConnection(MySQLBaseConnection):
             self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self.sock.settimeout(self.connection_timeout)
             self.sock.connect(self.unix_socket)
-        except socket.timeout, errmsg:
-            raise InterfaceError("Timed out connecting to %s (%s)" % (self.unix_socket, errmsg))
-        except socket.error, errmsg:
-            raise InterfaceError("Failed connecting to %s (%s)" % (self.unix_socket, errmsg))
+        except StandardError, e:
+            raise errors.OperationalError('%s' % e)
         
         buf = self.recv()[0]
         self.protocol.handle_handshake(buf)
@@ -149,13 +168,7 @@ class MySQLUnixConnection(MySQLBaseConnection):
 class MySQLTCPConnection(MySQLBaseConnection):
     """Opens a TCP connection to the MySQL Server."""
     
-    server_host = '127.0.0.1' # default going to localhost
-    server_port = 3306 # MySQL default
-    server_socket = None # Path to the MySQL server's UNIX socket
-    
     def __init__(self, prtcls=None, host='127.0.0.1', port=3306):
-        """Initializing"""
-        
         MySQLBaseConnection.__init__(self, prtcls=prtcls)
         self.server_host = host
         self.server_port = port
@@ -166,10 +179,8 @@ class MySQLTCPConnection(MySQLBaseConnection):
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.settimeout(self.connection_timeout)
             self.sock.connect( (self.server_host, self.server_port) )
-        except socket.timeout, errmsg:
-            raise InterfaceError("Timed out connecting to %s:%s" % (self.server_host, self.server_port))
-        except socket.error, errmsg:
-            raise InterfaceError("Failed connecting to %s:%s (%s)" % (self.server_host, self.server_port, errmsg))
+        except StandardError, e:
+            raise errors.OperationalError('%s' % e)
             
         buf = self.recv()[0]
         self.protocol.handle_handshake(buf)

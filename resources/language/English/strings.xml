@@ -5,7 +5,7 @@
 <strings>
   <string id="0">Myth TV</string>
   <string id="1">Watch TV</string>
-  <string id="2">Watch Recordings</string>
+  <string id="2">Watch Recordings (this screen is being rewritten)</string>
   <string id="3">TV Guide</string>
   <string id="4">Upcoming Recordings</string>
   <string id="5">Status</string>
@@ -110,7 +110,7 @@
   <string id="104">Not enough disk space available to record this program</string>
   <string id="105">Tuner was busy at the time of this recording</string>
   <string id="106">Do you want to automatically skip commercials?</string>
-  <string id="107">TV Guide</string>
+  <string id="107">TV Guide (this screen is being rewritten)</string>
   <string id="108">No Data</string>
   <string id="109">Protocol version error: %s</string>
   <string id="110">Recording Schedules</string>

@@ -1,23 +1,28 @@
-"""
-Connector/Python, native MySQL driver written in Python.
-Copyright 2009 Sun Microsystems, Inc. All rights reserved. Use is subject to license terms.
+# MySQL Connector/Python - MySQL driver written in Python.
+# Copyright 2009 Sun Microsystems, Inc. All rights reserved
+# Use is subject to license terms. (See COPYING)
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation.
+# 
+# There are special exceptions to the terms and conditions of the GNU
+# General Public License as it is applied to this software. View the
+# full text of the exception in file EXCEPTIONS-CLIENT in the directory
+# of this software distribution or see the FOSS License Exception at
+# www.mysql.com.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+"""Unittests for PEP-249
 
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-"""
-
-"""
 Rewritten from scratch. Found Ian Bicking's test suite and shamelessly
 stole few of his ideas. (Geert)
 """
@@ -32,23 +37,6 @@ import mysql.connector as myconn
 
 class PEP249Base(tests.MySQLConnectorTests):
     
-    tbl_create = """CREATE myconnpy_%s 
-        (c1 int, c2 varchar(30), PRIMARY KEY (c1))"""
-    tbl_drop = """DROP TABLE myconnpy_%s"""
-    select = """SELECT * FROM myconnpy_%s"""
-    
-    @classmethod
-    def get_create_ddl(cls,suffix='pep249'):
-        return cls.tbl_create % (suffix)
-    
-    @classmethod
-    def get_drop_ddl(cls,suffix='pep249'):
-        return cls.tbl_drop % (suffix)
-    
-    @classmethod
-    def get_select(cls, suffix='pep249'):
-        return cls.select % (suffix)
-    
     def db_connect(self):
         return myconn.connect(**tests.MYSQL_CONFIG)
 
@@ -57,7 +45,7 @@ class PEP249Base(tests.MySQLConnectorTests):
         try:
             cursor.execute("SELECT CONNECTION_ID()")
             cid = cursor.fetchone()[0]
-        except myconn.errors.Error as e:
+        except myconn.errors.Error, e:
             self.fail("Failed getting connection id; %s" % e)
             
         return cid
@@ -80,7 +68,7 @@ class PEP249ModuleTests(PEP249Base):
         """Interface exports the connect()-function"""
         self.assertTrue(inspect.isfunction(myconn.connect),
             "Module does not export the connect()-function")
-        db = myconn.connect()
+        db = myconn.connect(**tests.MYSQL_CONFIG)
         self.assertTrue(isinstance(db,myconn.mysql.MySQL),
             "The connect()-method returns incorrect instance")
     
@@ -221,6 +209,13 @@ class PEP249CursorTests(PEP249Base):
             "Cursor object has no rowcount-attribute")
         self.assertEqual(-1,self.c1.rowcount,
             "Cursor object's rowcount should default to -1")
+        
+    def test_lastrowid(self):
+        """Cursor object has lastrowid-attribute"""
+        self.assertTrue(hasattr(self.c1,'lastrowid'),
+            "Cursor object has no lastrowid-attribute")
+        self.assertEqual(None,self.c1.lastrowid,
+            "Cursor object's lastrowid should default to None")
     
     def test_callproc(self):
         """Cursor object has callproc()-method"""
@@ -304,7 +299,7 @@ class PEP249CursorTests(PEP249Base):
         try:
             cursor.execute(drop)
             cursor.execute(create)
-        except myconn.errors.Error as e:
+        except myconn.errors.Error, e:
             self.fail("Failed setting up test table; %s" % e)
         cursor.close()
     
@@ -317,7 +312,7 @@ class PEP249CursorTests(PEP249Base):
         cursor = self.db.cursor()
         try:
             cursor.execute(drop)
-        except myconn.errors.Error as e:
+        except myconn.errors.Error, e:
             self.fail("Failed cleaning up; %s" % e)
         cursor.close()
         
@@ -346,14 +341,17 @@ class PEP249CursorTests(PEP249Base):
         # Insert data
         try:
             c1.execute(stmt_insert, data)
-        except myconn.errors.Error as e:
+        except myconn.errors.Error, e:
             self.fail("Failed inserting test data; %s" % e)
         
         # Query for data
+        result = None
         try:
             c2.execute(stmt_select)
             result = c2.fetchone()
-        except myconn.errors.Error as e:
+        except myconn.errors.InterfaceError:
+            pass
+        except myconn.errors.Error, e:
             self.fail("Failed querying for test data; %s" % e)
         
         if conn_equal:
@@ -374,7 +372,8 @@ class PEP249CursorTests(PEP249Base):
     def test_isolation2(self):
         """Cursor isolation with 2 cursors, different connections, trans."""
         db2 = self.db_connect()
-        self._isolation_test(self.db,db2,'InnoDB')
+        if self.haveEngine(db2,'InnoDB'):
+            self._isolation_test(self.db,db2,'InnoDB')
 
 class PEP249TypeObjConstructorsTests(PEP249Base):
     

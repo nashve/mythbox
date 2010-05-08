@@ -17,18 +17,10 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #
 
-import logging
 import os
 import socket
 import time
 
-"""
-Mock xbmc module used by unit tests
-"""
-
-log = logging.getLogger('mythtv.unittest')
-
-# =============================================================================
 def getIPAddress():
     return socket.gethostbyname(socket.gethostname())
 
@@ -38,16 +30,323 @@ def getLanguage():
 def getSkinDir():
     return os.getcwd()
 
-def sleep(millis):
-    secs = float(millis) / float(1000)
-    time.sleep(secs)
-    
 def executebuiltin(command):
+    """
+    Execute a built in XBMC function.
+     
+    function       : string - builtin function to execute.
+     
+    List of functions - http://xbmc.org/wiki/?title=List_of_Built_In_Functions 
+     
+    example:
+      - xbmc.executebuiltin('XBMC.RunXBE(c:\\avalaunch.xbe)')
+    """
     pass
 
-def translatePath(path):
-    return path
+def dashboard():
+    """
+    Boot to dashboard as set in My Pograms/General.
+     
+    example:
+      - xbmc.dashboard()
+    """
+    pass
 
+def enableNavSounds(yesNo):
+    """
+    Enables/Disables nav sounds
+     
+    yesNo          : integer - enable (True) or disable (False) nav sounds
+     
+    example:
+      - xbmc.enableNavSounds(True)
+    """
+    pass
+
+def executehttpapi(httpcommand):
+    """
+    Execute an HTTP API command.
+     
+    httpcommand    : string - http command to execute.
+     
+    List of commands - http://xbmc.org/wiki/?title=WebServerHTTP-API#The_Commands 
+     
+    example:
+      - response = xbmc.executehttpapi('TakeScreenShot(special://temp/test.jpg,0,false,200,-1,90)')
+    """
+    pass
+
+def executescript(script):
+    """
+    Execute a python script.
+     
+    script         : string - script filename to execute.
+     
+    example:
+      - xbmc.executescript('special://home/scripts/update.py')
+    """
+    pass
+
+def getCacheThumbName(path):
+    """
+    Returns a thumb cache filename.
+     
+    path           : string or unicode - path to file
+     
+    example:
+      - thumb = xbmc.getCacheThumbName('f:\\videos\\movie.avi')
+    """
+    pass
+
+def getCondVisibility(condition):
+    """
+    Returns True (1) or False (0) as a bool.
+     
+    condition      : string - condition to check.
+     
+    List of Conditions - http://xbmc.org/wiki/?title=List_of_Boolean_Conditions 
+     
+    *Note, You can combine two (or more) of the above settings by using "+" as an AND operator,
+    "|" as an OR operator, "!" as a NOT operator, and "[" and "]" to bracket expressions.
+     
+    example:
+      - visible = xbmc.getCondVisibility('[Control.IsVisible(41) + !Control.IsVisible(12)]')
+    """
+    pass
+
+def getDVDState():
+    """
+    Returns the dvd state as an integer.
+     
+    return values are:
+       1 : xbmc.DRIVE_NOT_READY
+      16 : xbmc.TRAY_OPEN
+      64 : xbmc.TRAY_CLOSED_NO_MEDIA
+      96 : xbmc.TRAY_CLOSED_MEDIA_PRESENT
+     
+    example:
+      - dvdstate = xbmc.getDVDState()
+    """
+    pass
+
+def getFreeMem():
+    """
+    Returns the amount of free memory in MB as an integer.
+     
+    example:
+      - freemem = xbmc.getFreeMem()
+    """
+    pass
+
+def getGlobalIdleTime():
+    """
+    Returns the elapsed idle time in seconds as an integer.
+    example:
+      - t = xbmc.getGlobalIdleTime()
+    """
+    pass
+
+def getInfoImage(infotag):
+    """
+    Returns a filename including path to the InfoImage's thumbnail as a string.
+     
+    infotag        : string - infotag for value you want returned.
+     
+    List of InfoTags - http://xbmc.org/wiki/?title=InfoLabels 
+     
+    example:
+      - filename = xbmc.getInfoImage('Weather.Conditions')
+    """
+    pass
+
+def getInfoLabel(infotag):
+    """
+    Returns an InfoLabel as a string.
+     
+    infotag        : string - infoTag for value you want returned.
+     
+    List of InfoTags - http://xbmc.org/wiki/?title=InfoLabels 
+     
+    example:
+      - label = xbmc.getInfoLabel('Weather.Conditions')
+    """
+    pass
+
+def getLocalizedString(id):
+    """
+    Returns a localized 'unicode string'.
+     
+    id             : integer - id# for string you want to localize.
+     
+    *Note, See strings.xml in \language\{yourlanguage}\ for which id
+           you need for a string.
+     
+    example:
+      - locstr = xbmc.getLocalizedString(6)
+    """
+    pass
+
+def getRegion(id):
+    """
+    Returns your regions setting as a string for the specified id.
+     
+    id             : string - id of setting to return
+     
+    *Note, choices are (dateshort, datelong, time, meridiem, tempunit, speedunit)
+     
+           You can use the above as keywords for arguments.
+     
+    example:
+      - date_long_format = xbmc.getRegion('datelong')
+    """
+    pass
+
+def getSupportedMediaa(media):
+    """
+    Returns the supported file types for the specific media as a string.
+     
+    media          : string - media type
+     
+    *Note, media type can be (video, music, picture).
+     
+           The return value is a pipe separated string of filetypes (eg. '.mov|.avi').
+     
+           You can use the above as keywords for arguments.
+     
+    example:
+      - mTypes = xbmc.getSupportedMedia('video')
+    """
+    pass
+
+def log(msg, level):
+    """Write a string to XBMC's log file.
+     
+    msg            : string - text to output.
+    level          : [opt] integer - log level to ouput at. (default=LOGNOTICE)
+     
+     
+    *Note, You can use the above as keywords for arguments and skip certain optional arguments.
+           Once you use a keyword, all following arguments require the keyword.
+     
+           Text is written to the log for the following conditions.
+             XBMC loglevel == -1 (NONE, nothing at all is logged)         XBMC loglevel == 0 (NORMAL, shows LOGNOTICE, LOGERROR, LOGSEVERE and LOGFATAL)         XBMC loglevel == 1 (DEBUG, shows all)       See pydocs for valid values for level.
+     
+    example:
+      - xbmc.log(msg='This is a test string.', level=xbmc.LOGDEBUG)
+    """
+    pass
+
+def makeLegalFilename(filename, fatX):
+    """Returns a legal filename or path as a string.
+     
+    filename       : string or unicode - filename/path to make legal
+    fatX           : [opt] bool - True=Xbox file system(Default)
+     
+    *Note, If fatX is true you should pass a full path. If fatX is false only pass
+           the basename of the path.
+     
+           You can use the above as keywords for arguments and skip certain optional arguments.
+           Once you use a keyword, all following arguments require the keyword.
+     
+    example:
+      - filename = xbmc.makeLegalFilename('F:\Trailers\Ice Age: The Meltdown.avi')
+    """
+    pass
+
+def output(msg, level):
+    """
+    Write a string to XBMC's log file and the debug window.
+     
+    msg            : string - text to output.
+    level          : [opt] integer - log level to ouput at. (default=LOGNOTICE)
+     
+    *Note, You can use the above as keywords for arguments and skip certain optional arguments.
+           Once you use a keyword, all following arguments require the keyword.
+     
+           Text is written to the log for the following conditions.
+             XBMC loglevel == -1 (NONE, nothing at all is logged)         XBMC loglevel == 0 (NORMAL, shows LOGNOTICE, LOGERROR, LOGSEVERE and LOGFATAL)         XBMC loglevel == 1 (DEBUG, shows all)       See pydocs for valid values for level.
+     
+    example:
+      - xbmc.output(msg='This is a test string.', level=xbmc.LOGDEBUG)
+    """
+    pass
+
+def playSFX(filename):
+    """
+    Plays a wav file by filename
+     
+    filename       : string - filename of the wav file to play.
+     
+    example:
+      - xbmc.playSFX('special://xbmc/scripts/dingdong.wav')
+    """
+    pass
+
+def restart():
+    """
+    Restart the xbox.
+     
+    example:
+      - xbmc.restart()
+    """
+    pass
+
+def shutdown():
+    """
+    Shutdown the xbox.
+     
+    example:
+      - xbmc.shutdown()
+    """
+    pass
+
+def skinHasImage(image):
+    """
+    Returns True if the image file exists in the skin.
+     
+    image          : string - image filename
+     
+    *Note, If the media resides in a subfolder include it. (eg. home-myfiles\\home-myfiles2.png)
+     
+           You can use the above as keywords for arguments.
+     
+    example:
+      - exists = xbmc.skinHasImage('ButtonFocusedTexture.png')
+    """
+    pass
+
+def sleep(millis):
+    """
+    Sleeps for 'time' msec.
+     
+    millis           : integer - number of msec to sleep.
+     
+    *Note, This is useful if you have for example a Player class that is waiting
+           for onPlayBackEnded() calls.
+     
+    Throws: PyExc_TypeError, if time is not an integer.
+     
+    example:
+      - xbmc.sleep(2000) # sleeps for 2 seconds
+    """
+    secs = float(millis) / float(1000)
+    time.sleep(secs)
+
+def translatePath(path):
+    """
+    Returns the translated path.
+     
+    path           : string or unicode - Path to format
+     
+    *Note, Only useful if you are coding for both Linux and the Xbox.
+           e.g. Converts 'special://masterprofile/script_data' -> '/home/user/XBMC/UserData/script_data'
+           on Linux. Would return 'special://masterprofile/script_data' on the Xbox.
+     
+    example:
+      - fpath = xbmc.translatePath('special://masterprofile/script_data')
+    """
+    return path
+      
 # =============================================================================
 class Language(object):
 
@@ -197,14 +496,12 @@ class Player(object):
         - listitem.setInfo('video', {'Title': 'Ironman', 'Genre': 'Science Fiction'})
         - xbmc.Player( xbmc.PLAYER_CORE_MPLAYER ).play(url, listitem)
         """
-        log.debug("> play")
         self._playing = True
         self._time = 1
         self.onPlayBackStarted()
         time.sleep(2)
         self.stop()
         self.onPlayBackEnded()
-        log.debug("< play")
             
     def playnext(self):
         """
@@ -256,7 +553,7 @@ class Keyboard(object):
         heading        : [opt] string - keyboard heading.
         hidden         : [opt] boolean - True for hidden text entry.
         """
-        log.debug('xbmc.KeyBoard created')
+        pass
     
     def doModal(self):
         pass
@@ -266,3 +563,54 @@ class Keyboard(object):
     
     def getText(self):
         return Keyboard.stubText
+
+# =============================================================================    
+class Settings(object):
+ 
+    def __init__(self, path):
+        """
+        Creates a new Settings class.
+        path            : string - path to script. (eg special://home/scripts/Apple Movie Trailers)
+        *Note, settings folder structure is eg(resources/settings.xml)
+               You can use the above as keywords for arguments and skip certain optional arguments.
+               Once you use a keyword, all following arguments require the keyword.
+        example:
+         - self.Settings = xbmc.Settings(path=os.getcwd())
+        """
+        pass
+
+    def getSetting(self, id):
+        """
+        Returns the value of a setting as a string.
+         
+        id        : string - id of the setting that the module needs to access.
+         
+        *Note, You can use the above as a keyword.
+         
+        example:
+          - apikey = self.Settings.getSetting('apikey')
+        """
+        pass
+    
+    def openSettings(self):
+        """
+        openSettings() -- Opens this scripts settings dialog.
+         
+        example:
+          - self.Settings.openSettings()
+        """
+        pass
+    
+    def setSetting(self, id, value):
+        """
+        Sets a script setting.
+         
+        id        : string - id of the setting that the module needs to access.
+        value     : string or unicode - value of the setting.
+         
+        *Note, You can use the above as keywords for arguments.
+         
+        example:
+          - self.Settings.setSetting(id='username', value='teamxbmc')
+        """
+        pass    

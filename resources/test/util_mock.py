@@ -23,7 +23,7 @@ import mockito
 import os
 import string
 import unittest
-import test_util
+import mythboxtest.test_util
 import xbmc
 
 from xml.dom import minidom, Node
@@ -173,26 +173,17 @@ class TranslatorTest(unittest.TestCase):
         self.assertEquals('<Undefined>', s)
         
 # =============================================================================
-class XBMCSettingsTest(unittest.TestCase):
-
-    def test_getSetting_Success(self):
-        settings = XBMCSettings(os.path.join(test_util.MockPlatform().getXbmcUserSettingsRoot(), 'userdata', 'guisettings.xml'))
-        s = settings.getSetting('settings.lookandfeel.enablemouse')
-        log.debug('settings.lookandfeel.language = ' + s)
-        self.assertTrue(s in ['true', 'false'])
-        
-# =============================================================================
 class XBMCLangInfoTest(unittest.TestCase):
 
     def test_getSetting_Success(self):
-        langInfo = XBMCLangInfo(test_util.MockPlatform())
+        langInfo = XBMCLangInfo(mythboxtest.test_util.MockPlatform())
         s = langInfo.getSetting('language.charsets.gui')
         log.debug('language.charsets.gui = ' + s)
         self.assertEquals('CP1252', s)
 
     def test_getSetting_NotDefinedThrowsIndexError(self):
         try:
-            langInfo = XBMCLangInfo(test_util.MockPlatform())
+            langInfo = XBMCLangInfo(mythboxtest.test_util.MockPlatform())
             s = langInfo.getSetting('undefined.setting')
         except IndexError:
             pass

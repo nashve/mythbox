@@ -1,20 +1,27 @@
-"""
-Connector/Python, native MySQL driver written in Python.
-Copyright 2009 Sun Microsystems, Inc. All rights reserved. Use is subject to license terms.
+# MySQL Connector/Python - MySQL driver written in Python.
+# Copyright 2009 Sun Microsystems, Inc. All rights reserved
+# Use is subject to license terms. (See COPYING)
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation.
+# 
+# There are special exceptions to the terms and conditions of the GNU
+# General Public License as it is applied to this software. View the
+# full text of the exception in file EXCEPTIONS-CLIENT in the directory
+# of this software distribution or see the FOSS License Exception at
+# www.mysql.com.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+"""Unittests for mysql.connector.protocol
 """
 
 import datetime, decimal
@@ -33,15 +40,15 @@ class ClientTests(tests.MySQLConnectorTests):
         if self.client:
             self.client.disconnect()
 
-class PacketTests(tests.MySQLConnectorTests):
-    """Tests for protocol.Packet"""
+class PacketOutTests(tests.MySQLConnectorTests):
+    """Tests for protocol.PacketOut"""
     
     def test_init(self):
         """Check if Packet instance is initialized correctly"""
-        pkt = protocol.Packet(None, 2)
+        pkt = protocol.PacketOut(None, 2)
         
-        self.assertEqual('',pkt.buffer)
-        self.assertEqual(0,pkt.length)
+        self.assertEqual('',pkt.data)
+        self.assertEqual(0,len(pkt))
         self.assertEqual(2,pkt.pktnr)
         self.assertEqual(10,pkt.protocol)
 
@@ -49,8 +56,8 @@ class PacketTests(tests.MySQLConnectorTests):
         """Make header of packet"""
         exp = '\x10\x00\x00\x00'
         data =  '\x43\x6f\x6e\x6e\x65\x63\x74\x6f\x72\x2f\x50\x79\x74\x68\x6f\x6e'
-        pkt = protocol.Packet()
-        pkt.buffer = data
+        pkt = protocol.PacketOut()
+        pkt.data = data
         
         self.assertEqual(exp, pkt._make_header())
 
@@ -58,15 +65,14 @@ class PacketTests(tests.MySQLConnectorTests):
         """Get the buffer of the packet"""
         data = '\x43\x6f\x6e\x6e\x65\x63\x74\x6f\x72\x2f\x50\x79\x74\x68\x6f\x6e'
         exp = '\x10\x00\x00\x00' + data
-        pkt = protocol.Packet()
-        pkt.buffer = data
-        
+        pkt = protocol.PacketOut()
+        pkt.data = data
         self.assertEqual(exp,pkt.get())
     
     def test_is_valid(self):
         """Test validity of the buffer"""
         data = '\x10\x00\x00\x00' + '\x43\x6f\x6e\x6e\x65\x63\x74\x6f\x72\x2f\x50\x79\x74\x68\x6f\x6e'
-        pkt = protocol.Packet()
+        pkt = protocol.PacketOut()
         
         self.assertTrue(pkt.is_valid(data))
         self.assertFalse(pkt.is_valid(data[0:10]))
@@ -76,17 +82,17 @@ class PacketTests(tests.MySQLConnectorTests):
         data = '\x43\x6f\x6e\x6e\x65\x63\x74\x6f\x72\x2f\x50\x79\x74\x68\x6f\x6e'
         exp = '\x10\x00\x00\x00' + data
         exp_len = len(data)
-        pkt = protocol.Packet()
+        pkt = protocol.PacketOut()
         pkt.set(exp)
 
         self.assertEqual(exp,pkt.get())
-        self.assertEqual(exp_len,pkt.get_length())
+        self.assertEqual(exp_len,len(pkt))
 
     def test_get_header(self):
         """Get header of packet"""
         exp = '\x10\x00\x00\x00'
         data =  exp + '\x43\x6f\x6e\x6e\x65\x63\x74\x6f\x72\x2f\x50\x79\x74\x68\x6f\x6e'
-        pkt = protocol.Packet(data)
+        pkt = protocol.PacketOut(data)
 
         self.assertEqual(exp, pkt.get_header())
     
@@ -96,7 +102,7 @@ class PacketTests(tests.MySQLConnectorTests):
         # data == 'Connector/Python'
         data = '\x43\x6f\x6e\x6e\x65\x63\x74\x6f\x72\x2f\x50\x79\x74\x68\x6f\x6e'
         exp = '\x10\x00\x00\x00' + data
-        pkt = protocol.Packet()
+        pkt = protocol.PacketOut()
         pkt.add('Connector')
         pkt.add('/')
         pkt.add('Python')
@@ -108,7 +114,7 @@ class PacketTests(tests.MySQLConnectorTests):
         data = 2**8-1
         exp = '\x01\x00\x00\x00\xff'
         
-        pkt = protocol.Packet()
+        pkt = protocol.PacketOut()
         pkt.add_1_int(data)
         
         self.assertEqual(exp,pkt.get())
@@ -118,7 +124,7 @@ class PacketTests(tests.MySQLConnectorTests):
         data = 2**16-1
         exp = '\x02\x00\x00\x00\xff\xff'
 
-        pkt = protocol.Packet()
+        pkt = protocol.PacketOut()
         pkt.add_2_int(data)
 
         self.assertEqual(exp,pkt.get())
@@ -128,7 +134,7 @@ class PacketTests(tests.MySQLConnectorTests):
         data = 2**24-1
         exp = '\x03\x00\x00\x00\xff\xff\xff'
 
-        pkt = protocol.Packet()
+        pkt = protocol.PacketOut()
         pkt.add_3_int(data)
 
         self.assertEqual(exp,pkt.get())
@@ -138,7 +144,7 @@ class PacketTests(tests.MySQLConnectorTests):
         data = 2**32-1
         exp = '\x04\x00\x00\x00\xff\xff\xff\xff'
 
-        pkt = protocol.Packet()
+        pkt = protocol.PacketOut()
         pkt.add_4_int(data)
 
         self.assertEqual(exp,pkt.get())
@@ -148,14 +154,14 @@ class PacketTests(tests.MySQLConnectorTests):
         data = 5
         exp = '\x05\x00\x00\x00' + ('\x00' * 5)
         
-        pkt = protocol.Packet()
+        pkt = protocol.PacketOut()
         pkt.add_null(data)
         
         self.assertEqual(exp,pkt.get())
     
     def test__is_valid_extra(self):
         """Extra validation of buffer"""
-        pkt = protocol.Packet()
+        pkt = protocol.PacketOut()
         
         self.assertEqual(None, pkt._is_valid_extra())
 
@@ -239,7 +245,7 @@ class AuthTest(tests.MySQLConnectorTests):
         pkt = protocol.Auth()
         pkt.create(**data)
         
-        self.assertEqual(exp, pkt.buffer)
+        self.assertEqual(exp, pkt.data)
 
 class ChangeUserPacketTest(tests.MySQLConnectorTests):
     
@@ -262,5 +268,5 @@ class ChangeUserPacketTest(tests.MySQLConnectorTests):
         pkt = protocol.ChangeUserPacket()
         pkt.create(**data)
         
-        self.assertEqual(exp, pkt.buffer)
+        self.assertEqual(exp, pkt.data)
         

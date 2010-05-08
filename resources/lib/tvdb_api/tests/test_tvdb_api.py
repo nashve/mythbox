@@ -52,7 +52,7 @@ class test_tvdb_basic(unittest.TestCase):
             len(
                 [season for season in self.t['Life on Mars']]
             ),
-            2
+            3
         )
     
     def test_season_iter(self):
@@ -146,8 +146,8 @@ class test_tvdb_search(unittest.TestCase):
     def test_search_show(self):
         """Checks the searching of an entire show"""
         self.assertEquals(
-            len(self.t['life on mars'].search('the', key='episodename')),
-            10
+            len(self.t['CNNNN'].search('CNNNN', key='episodename')),
+            2
         )
 
 class test_tvdb_data(unittest.TestCase):
@@ -354,9 +354,12 @@ class test_tvdb_actors(unittest.TestCase):
         """Check image URL is fully qualified
         """
         for actor in self.t['scrubs']['_actors']:
-            self.assertTrue(
-                actor['image'].startswith("http://")
-            )
+            if actor['image'] is not None:
+                # Actor's image can be None, it displays as the placeholder
+                # image on thetvdb.com
+                self.assertTrue(
+                    actor['image'].startswith("http://")
+                )
 
 class test_tvdb_doctest(unittest.TestCase):
     # Used to store the cached instance of Tvdb()

@@ -6,7 +6,7 @@ IMDb's data for mobile systems.
 the imdb.IMDb function will return an instance of this class when
 called with the 'accessSystem' argument set to "mobile".
 
-Copyright 2005-2009 Davide Alberani <da@erlug.linux.it>
+Copyright 2005-2010 Davide Alberani <da@erlug.linux.it>
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 """
 
 import re
+import logging
 from urllib import unquote
 
 from imdb import imdbURL_movie_main, imdbURL_person_main, imdbURL_character_main
@@ -47,6 +48,9 @@ re_unhtml = re.compile(r'<.+?>')
 re_unhtmlsub = re_unhtml.sub
 # imdb person or movie ids.
 re_imdbID = re.compile(r'(?<=nm|tt|ch)([0-9]{7})\b')
+
+# movie AKAs.
+re_makas = re.compile('(<p class="find-aka">.*?</p>)')
 
 
 def _unHtml(s):
@@ -117,6 +121,7 @@ class IMDbMobileAccessSystem(IMDbHTTPAccessSystem):
     mobile terminals."""
 
     accessSystem = 'mobile'
+    _mobile_logger = logging.getLogger('imdbpy.parser.mobile')
 
     def __init__(self, isThin=1, *arguments, **keywords):
         self.accessSystem = 'mobile'
@@ -178,19 +183,22 @@ class IMDbMobileAccessSystem(IMDbHTTPAccessSystem):
         cont = subXMLRefs(self._get_search_content('tt', title, results))
         title = _findBetween(cont, '<title>', '</title>', maxRes=1)
         res = []
-        if not title: return res
+        if not title:
+            self._mobile_logger.error('no title tag searching for movie %s',
+                                    title)
+            return res
         tl = title[0].lower()
         if not tl.startswith('imdb title'):
             # a direct hit!
             title = _unHtml(title[0])
-            midtag = _getTagsWith(cont, 'name="arg"', maxRes=1)
-            if not midtag: midtag = _getTagsWith(cont, 'name="auto"', maxRes=1)
             mid = None
+            midtag = _getTagsWith(cont, 'rel="canonical"', maxRes=1)
             if midtag:
-                mid = _findBetween(midtag[0], 'value="', '"', maxRes=1)
-                if mid and not mid[0].isdigit():
-                    mid = re_imdbID.findall(mid[0])
-            if not (mid and title): return res
+                mid = _findBetween(midtag[0], '/title/tt', '/', maxRes=1)
+            if not (mid and title):
+                self._mobile_logger.error('no direct hit title/movieID for' \
+                                            ' title %s', title)
+                return res
             if cont.find('<span class="tv-extra">TV mini-series</span>') != -1:
                 title += ' (mini)'
             res[:] = [(str(mid[0]), analyze_title(title))]
@@ -201,22 +209,23 @@ class IMDbMobileAccessSystem(IMDbHTTPAccessSystem):
             lis = _findBetween(cont, 'td valign="top">', '</td>',
                                 maxRes=results*3)
             for li in lis:
-                akaIdx = li.find('aka <em>')
-                akas = []
-                if akaIdx != -1:
-                    akas = [_unHtml(x) for x in li[akaIdx:].split('<br>')]
-                    li = li[:akaIdx]
-                if akas:
-                    for idx, aka in enumerate(akas):
-                        aka = aka.replace('" - ', '::')
-                        if aka.startswith('aka "'):
-                            aka = aka[5:]
-                        if aka[-1] == '"':
-                            aka = aka[:-1]
-                        akas[idx] = aka
+                akas = re_makas.findall(li)
+                for idx, aka in enumerate(akas):
+                    aka = aka.replace('" - ', '::', 1)
+                    aka = _unHtml(aka)
+                    if aka.startswith('aka "'):
+                        aka = aka[5:].strip()
+                    if aka[-1] == '"':
+                        aka = aka[:-1]
+                    akas[idx] = aka
                 imdbid = re_imdbID.findall(li)
+                li = re_makas.sub('', li)
                 mtitle = _unHtml(li)
-                if not (imdbid and mtitle): continue
+                if not (imdbid and mtitle):
+                    self._mobile_logger.debug('no title/movieID parsing' \
+                                            ' %s searching for title %s', li,
+                                            title)
+                    continue
                 mtitle = mtitle.replace('(TV mini-series)', '(mini)')
                 resd = analyze_title(mtitle)
                 if akas:
@@ -258,7 +267,7 @@ class IMDbMobileAccessSystem(IMDbHTTPAccessSystem):
             air_date = air_date[0]
             vi = air_date.find('(')
             if vi != -1:
-                date = air_date[:vi].strip()
+                date = _unHtml(air_date[:vi]).strip()
                 if date != '????':
                     d['original air date'] = date
                 air_date = air_date[vi:]
@@ -321,8 +330,10 @@ class IMDbMobileAccessSystem(IMDbHTTPAccessSystem):
             cvurl = _findBetween(cvurl[0], 'src="', '"', maxRes=1)
             if cvurl: d['cover url'] = cvurl[0]
         genres = _findBetween(cont, 'href="/Sections/Genres/', '/')
-        if genres: d['genres'] = genres
-        ur = _findBetween(cont, '<div class="meta">', '</div>', maxRes=1)
+        if genres:
+            d['genres'] = list(set(genres))
+        ur = _findBetween(cont, '<div class="starbar-meta">', '</div>',
+                            maxRes=1)
         if ur:
             rat = _findBetween(ur[0], '<b>', '</b>', maxRes=1)
             if rat:
@@ -333,7 +344,7 @@ class IMDbMobileAccessSystem(IMDbHTTPAccessSystem):
                         rat = float(rat.strip())
                         d['rating'] = rat
                     except ValueError:
-                        pass
+                        self._mobile_logger.warn('wrong rating: %s', rat)
             vi = ur[0].rfind('tn15more">')
             if vi != -1 and ur[0][vi+10:].find('await') == -1:
                 try:
@@ -341,7 +352,7 @@ class IMDbMobileAccessSystem(IMDbHTTPAccessSystem):
                     votes = int(votes.replace(',', ''))
                     d['votes'] = votes
                 except ValueError:
-                    pass
+                    self._mobile_logger.warn('wrong votes: %s', ur)
         top250 = _findBetween(cont, 'href="/chart/top?', '</a>', maxRes=1)
         if top250:
             fn = top250[0].rfind('#')
@@ -350,7 +361,7 @@ class IMDbMobileAccessSystem(IMDbHTTPAccessSystem):
                     td = int(top250[0][fn+1:])
                     d['top 250 rank'] = td
                 except ValueError:
-                    pass
+                    self._mobile_logger.warn('wrong top250: %s', top250)
         castdata = _findBetween(cont, 'Cast overview', '</table>', maxRes=1)
         if not castdata:
             castdata = _findBetween(cont, 'Credited cast', '</table>', maxRes=1)
@@ -392,7 +403,7 @@ class IMDbMobileAccessSystem(IMDbHTTPAccessSystem):
             runtimes = runtimes[0]
             runtimes = [x.strip().replace(' min', '').replace(' (', '::(', 1)
                     for x in runtimes.split('|')]
-            d['runtimes'] = runtimes
+            d['runtimes'] = [_unHtml(x).strip() for x in runtimes]
         if kind == 'episode':
             # number of episodes.
             epsn = _findBetween(cont, 'title="Full Episode List">', '</a>',
@@ -400,8 +411,10 @@ class IMDbMobileAccessSystem(IMDbHTTPAccessSystem):
             if epsn:
                 epsn = epsn[0].replace(' Episodes', '').strip()
                 if epsn:
-                    try: epsn = int(epsn)
-                    except: pass
+                    try:
+                        epsn = int(epsn)
+                    except:
+                        self._mobile_logger.warn('wrong episodes #: %s', epsn)
                     d['number of episodes'] = epsn
         country = _findBetween(cont, 'Country:</h5>', '</div>', maxRes=1)
         if country:
@@ -415,13 +428,14 @@ class IMDbMobileAccessSystem(IMDbHTTPAccessSystem):
             lang[:] = ['<a %s' % x for x in lang if x]
             lang[:] = [_unHtml(x.replace(' <i>', '::')) for x in lang]
             if lang: d['languages'] = lang
-        col = _findBetween(cont, '"/List?color-info=', '</div>')
+        col = _findBetween(cont, '"/search/title?colors=', '</div>')
         if col:
             col[:] = col[0].split(' | ')
             col[:] = ['<a %s' % x for x in col if x]
             col[:] = [_unHtml(x.replace(' <i>', '::')) for x in col]
             if col: d['color info'] = col
-        sm = _findBetween(cont, '/List?sound-mix=', '</div>', maxRes=1)
+        sm = _findBetween(cont, '/search/title?sound_mixes=', '</div>',
+                            maxRes=1)
         if sm:
             sm[:] = sm[0].split(' | ')
             sm[:] = ['<a %s' % x for x in sm if x]
@@ -437,13 +451,13 @@ class IMDbMobileAccessSystem(IMDbHTTPAccessSystem):
         if plotoutline:
             plotoutline = plotoutline[0].strip()
             plotoutline = plotoutline.rstrip('|').rstrip()
-            if plotoutline: d['plot outline'] = plotoutline
+            if plotoutline: d['plot outline'] = _unHtml(plotoutline)
         aratio = _findBetween(cont, 'Aspect Ratio:</h5>', ['<a ', '</div>'],
                             maxRes=1)
         if aratio:
             aratio = aratio[0].strip().replace(' (', '::(', 1)
             if aratio:
-                d['aspect ratio'] = aratio
+                d['aspect ratio'] = _unHtml(aratio)
         return {'data': d}
 
     def get_movie_plot(self, movieID):
@@ -469,27 +483,22 @@ class IMDbMobileAccessSystem(IMDbHTTPAccessSystem):
         cont = subXMLRefs(self._get_search_content('nm', name, results))
         name = _findBetween(cont, '<title>', '</title>', maxRes=1)
         res = []
-        if not name: return res
+        if not name:
+            self._mobile_logger.warn('no title tag searching for name %s', name)
+            return res
         nl = name[0].lower()
         if not nl.startswith('imdb name'):
             # a direct hit!
             name = _unHtml(name[0])
-            # Easiest way: the board link (for person who already have
-            # messages in the board).
-            pidtag = _getTagsWith(cont, '/board/nest/', maxRes=1)
+            name = name.replace('- Filmography by type' , '').strip()
             pid = None
-            if pidtag: pid = _findBetween(pidtag[0], '/name/nm', '/', maxRes=1)
+            pidtag = _getTagsWith(cont, 'rel="canonical"', maxRes=1)
+            if pidtag:
+                pid = _findBetween(pidtag[0], '/name/nm', '/', maxRes=1)
             if not (pid and name):
-                # Otherwise, the 'credited alongside' for the name,
-                # and the biography link for the personID.
-                nametag = _getTagsWith(cont, 'NAME="primary"', maxRes=1)
-                if not nametag: return res
-                nametag = _findBetween(nametag[0], 'VALUE="', '"', maxRes=1)
-                if not nametag: return res
-                name = unquote(nametag[0])
-                pid = _findBetween(cont, '/name/nm', ('/', '"', '>'), maxRes=1)
-                if not pid: return res
-            if not (pid and name): return res
+                self._mobile_logger.error('no direct hit name/personID for' \
+                                            ' name %s', name)
+                return res
             res[:] = [(str(pid[0]), analyze_name(name, canonical=1))]
         else:
             lis = _findBetween(cont, 'td valign="top">', '</td>',
@@ -502,7 +511,11 @@ class IMDbMobileAccessSystem(IMDbHTTPAccessSystem):
                         li = li[:sepIdx]
                 pid = re_imdbID.findall(li)
                 pname = _unHtml(li)
-                if not (pid and pname): continue
+                if not (pid and pname):
+                    self._mobile_logger.debug('no name/personID parsing' \
+                                            ' %s searching for name %s', li,
+                                            name)
+                    continue
                 resd = analyze_name(pname, canonical=1)
                 if akas:
                     resd['akas'] = akas
@@ -524,6 +537,9 @@ class IMDbMobileAccessSystem(IMDbHTTPAccessSystem):
         name = _unHtml(name[0])
         if _parseChr:
             name = name.replace('(Character)', '').strip()
+            name = name.replace('- Filmography by type', '').strip()
+        else:
+            name = name.replace('- Filmography by', '').strip()
         r = analyze_name(name, canonical=not _parseChr)
         for dKind in ('birth', 'death'):
             date = _findBetween(s, '<h5>Date of %s:</h5>' % dKind.capitalize(),
@@ -563,12 +579,15 @@ class IMDbMobileAccessSystem(IMDbHTTPAccessSystem):
         for work in workkind:
             wsplit = work.split('">', 1)
             if len(wsplit) == 2:
-                ws.append((wsplit[0], wsplit[1].lower()))
+                sect = wsplit[0]
+                if '"' in sect:
+                    sect = sect[:sect.find('"')]
+                ws.append((sect, wsplit[1].lower()))
         # XXX: I think "guest appearances" are gone.
         if s.find('<a href="#guest-appearances"') != -1:
             ws.append(('guest-appearances', 'notable tv guest appearances'))
-        if _parseChr:
-            ws.append(('filmography', 'filmography'))
+        #if _parseChr:
+        #    ws.append(('filmography', 'filmography'))
         for sect, sectName in ws:
             raws = u''
             # Everything between the current section link and the end
@@ -585,7 +604,9 @@ class IMDbMobileAccessSystem(IMDbHTTPAccessSystem):
             for m in mlist:
                 # For every movie in the current section.
                 movieID = re_imdbID.findall(m)
-                if not movieID: continue
+                if not movieID:
+                    self._mobile_logger.debug('no movieID in %s', m)
+                    continue
                 if not _parseChr:
                     chrIndx = m.find(' .... ')
                 else:
@@ -615,7 +636,9 @@ class IMDbMobileAccessSystem(IMDbHTTPAccessSystem):
                         status = _unHtml(m[stidx+3:stendidx])
                         m = m.replace(m[stidx+3:stendidx], '')
                 m = _unHtml(m)
-                if not m: continue
+                if not m:
+                    self._mobile_logger.warn('no title fo rmovieID %s', movieID)
+                    continue
                 movie = build_movie(m, movieID=movieID, status=status,
                                     roleID=chids, modFunct=self._defModFunct,
                                     accessSystem=self.accessSystem,
@@ -715,17 +738,23 @@ class IMDbMobileAccessSystem(IMDbHTTPAccessSystem):
         cont = subXMLRefs(self._get_search_content('char', name, results))
         name = _findBetween(cont, '<title>', '</title>', maxRes=1)
         res = []
-        if not name: return res
+        if not name:
+            self._mobile_logger.error('no title tag searching character %s',
+                                    name)
+            return res
         nl = name[0].lower()
         if not (nl.startswith('imdb search') or nl.startswith('imdb  search') \
                 or nl.startswith('imdb character')):
             # a direct hit!
             name = _unHtml(name[0]).replace('(Character)', '').strip()
-            pidtag = _getTagsWith(cont, '/character/ch', maxRes=1)
             pid = None
+            pidtag = _getTagsWith(cont, 'rel="canonical"', maxRes=1)
             if pidtag:
-                pid = re_imdbID.findall(pidtag[0])
-            if not (pid and name): return res
+                pid = _findBetween(pidtag[0], '/character/ch', '/', maxRes=1)
+            if not (pid and name):
+                self._mobile_logger.error('no direct hit name/characterID for' \
+                                            ' character %s', name)
+                return res
             res[:] = [(str(pid[0]), analyze_name(name))]
         else:
             sects = _findBetween(cont, '<b>Popular Characters</b>', '</table>',
@@ -739,7 +768,11 @@ class IMDbMobileAccessSystem(IMDbHTTPAccessSystem):
                     li = '<%s' % li
                     pid = re_imdbID.findall(li)
                     pname = _unHtml(li)
-                    if not (pid and pname): continue
+                    if not (pid and pname):
+                        self._mobile_logger.debug('no name/characterID' \
+                                                ' parsing %s searching for' \
+                                                ' character %s', li, name)
+                        continue
                     res.append((str(pid[0]), analyze_name(pname)))
         return res
 

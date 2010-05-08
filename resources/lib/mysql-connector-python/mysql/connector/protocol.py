@@ -1,26 +1,33 @@
-# -*- coding: utf-8 -*-
-"""
-Connector/Python, native MySQL driver written in Python.
-Copyright 2009 Sun Microsystems, Inc. All rights reserved. Use is subject to license terms.
+# MySQL Connector/Python - MySQL driver written in Python.
+# Copyright 2009 Sun Microsystems, Inc. All rights reserved
+# Use is subject to license terms. (See COPYING)
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation.
+# 
+# There are special exceptions to the terms and conditions of the GNU
+# General Public License as it is applied to this software. View the
+# full text of the exception in file EXCEPTIONS-CLIENT in the directory
+# of this software distribution or see the FOSS License Exception at
+# www.mysql.com.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USAs
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+"""Implementing the MySQL Client/Server protocol
 """
 
 import string
 import socket
 import re
+import struct
 
 try:
     from hashlib import sha1
@@ -32,32 +39,16 @@ from time import strptime
 from decimal import Decimal
 
 from constants import *
-from conversion import MySQLConverter
-from errors import *
-from utils import *
+import errors
 import utils
 
-_default_client_flags = [
-    ClientFlag.LONG_PASSWD,
-    ClientFlag.LONG_FLAG,
-    ClientFlag.CONNECT_WITH_DB,
-    ClientFlag.PROTOCOL_41,
-    ClientFlag.TRANSACTIONS,
-    ClientFlag.SECURE_CONNECTION,
-    ClientFlag.MULTI_STATEMENTS,
-    ClientFlag.MULTI_RESULTS,
-]
-
-class MySQLBaseProtocol(object):
-    """Base class handling the MySQL Protocol.
+class MySQLProtocol(object):
+    """Class handling the MySQL Protocol.
     
-    By default the MySQL 4.1 Client/Server is implemented here, but
-    MySQLProtocol41 should actually be used.
+    MySQL v4.1 Client/Server Protocol is currently supported.
     """
-    conn = None
-    client_flags = 0
-    
     def __init__(self, conn, handshake=None):
+        self.client_flags = 0
         self.conn = conn # MySQL Connection
         if handshake:
             self.set_handshake(handshake)
@@ -79,20 +70,22 @@ class MySQLBaseProtocol(object):
         handshake packet.
         """
         if not client_flags:
-            client_flags = 0
-            for flag in _default_client_flags:
-                client_flags |= flag
+            client_flags = ClientFlag.get_default()
         
-        auth = protocol.Auth(client_flags=client_flags,
+        auth = Auth(client_flags=client_flags,
             pktnr=self.handshake.pktnr+1)
         auth.create(username=username, password=password,
-            seed=self.handshake.data['seed'], database=database)
+            seed=self.handshake.info['seed'], database=database)
 
         self.conn.send(auth.get())
         buf = self.conn.recv()[0]
-        if database:
+        if self.is_eof(buf):
+            raise errors.InterfaceError("Found EOF after Auth, expecting OK. Using old passwords?")
+        
+        connect_with_db = client_flags & ClientFlag.CONNECT_WITH_DB
+        if self.is_ok(buf) and database and not connect_with_db:
             self.cmd_init_db(database)
-            
+        
     def handle_handshake(self, buf):
         """
         Check whether the buffer is a valid handshake. If it is, we set some
@@ -106,38 +99,37 @@ class MySQLBaseProtocol(object):
         
         handshake = None
         try:
-            handshake = protocol.Handshake(buf)
-        except InterfaceError, msg:
-            raise InterfaceError(msg)
+            handshake = Handshake(buf)
+        except errors.InterfaceError, msg:
+            raise errors.InterfaceError(msg)
         self.set_handshake(handshake)
     
     def set_handshake(self, handshake):
         """Gather data from the given handshake."""
         ver = re.compile("^(\d{1,2})\.(\d{1,2})\.(\d{1,3})(.*)")
-        version = handshake.data['version']
+        version = handshake.info['version']
         m = ver.match(version)
         if not m:
-            raise InterfaceError("Could not parse MySQL version, was '%s'" % version)
+            raise errors.InterfaceError("Could not parse MySQL version, was '%s'" % version)
         else:
             self.server_version = tuple([ int(v) for v in m.groups()[0:3]])
 
-        self.server_version_original = handshake.data['version']
-        self.server_threadid = handshake.data['thrdid']
-        self.capabilities = handshake.data['capabilities']
-        self.charset = handshake.data['charset']
-        self.threadid = handshake.data['thrdid']
+        self.server_version_original = handshake.info['version']
+        self.server_threadid = handshake.info['thrdid']
+        self.capabilities = handshake.info['capabilities']
+        self.charset = handshake.info['charset']
+        self.threadid = handshake.info['thrdid']
         self.handshake = handshake
 
     def _handle_error(self, buf):
-        """
-        When we get an Error Result Packet, we raise an InterfaceError.
+        """Raise an OperationalError if result is an error
         """
         try:
-            err = protocol.ErrorResultPacket(buf)
-        except InterfaceError, e:
+            err = ErrorResultPacket(buf)
+        except errors.InterfaceError, e:
             raise e
         else:
-            raise InterfaceError(err)
+            raise errors.OperationalError(err)
     
     def is_error(self, buf):
         """Check if the given buffer is a MySQL Error Packet.
@@ -157,8 +149,8 @@ class MySQLBaseProtocol(object):
         instead.
         """
         try:
-            ok = protocol.OKResultPacket(buf)
-        except InterfaceError, e:
+            ok = OKResultPacket(buf)
+        except errors.InterfaceError, e:
             raise e
         else:
             self.server_status = ok.server_status
@@ -185,7 +177,7 @@ class MySQLBaseProtocol(object):
         fields = []
         while i < nrflds:
             buf = self.conn.recv()[0]
-            fld = protocol.FieldPacket(buf)
+            fld = FieldPacket(buf)
             fields.append(fld)
             i += 1
         return fields
@@ -197,7 +189,7 @@ class MySQLBaseProtocol(object):
 
         Returns boolean.
         """
-        l = read_int(buf, 3)[1]
+        l = utils.read_int(buf, 3)[1]
         if buf and buf[4] == '\xfe' and l < 9:
             return True
         return False
@@ -208,61 +200,54 @@ class MySQLBaseProtocol(object):
         The argument pkt must be a protocol.Packet with length 1, a byte
         which contains the number of fields.
         """
-        if not isinstance(pkt, protocol.Packet):
-            raise ValueError, "%s is not a protocol.Packet" % startpkt
+        if not isinstance(pkt, PacketIn):
+            raise ValueError("%s is not a protocol.PacketIn" % pkt)
         
-        if pkt.get_length() == 1:
-            (buf,nrflds) = utils.read_lc_int(pkt.buffer)
+        if len(pkt) == 1:
+            (buf,nrflds) = utils.read_lc_int(pkt.data)
             
             # Get the fields
             fields = self._handle_fields(nrflds)
 
             buf = self.conn.recv()[0]
-            eof = protocol.EOFPacket(buf)
+            eof = EOFPacket(buf)
 
             return (nrflds, fields, eof)
         else:
-            raise InterfaceError, 'Something wrong reading result after query. Doing something unsupported?'
-
-
-    def result_get_rows(self, limit=-1):
-        """
-        Get all rows data. Should be called after getting the field
-        descriptions.
-
-        Returns a tuple with 2 elemends: list of rows and the
-        EOF packet useful getting the nr warnings.
-        """
-        rows = []
-        eof = None
-        nr = 0
-        while True:
-            buf = self.conn.recv()[0]
-            if self.is_eof(buf):
-                eof = protocol.EOFPacket(buf)
-                break
-            rowdata = protocol.RowDataPacket(buf)
-            rows.append(rowdata)
-            if len(rows) == limit and limit != -1:
-                break
-        return ( rows, eof )
+            raise errors.InterfaceError('Something wrong reading result after query.')
 
     def result_get_row(self):
-        """
+        """Get data for 1 row
+        
         Get one row's data. Should be called after getting the field
         descriptions.
 
-        Returns a tuple with 2 elemends: a row's data and the
-        EOF packet useful getting the nr warnings.
+        Returns a tuple with 2 elements: a row's data and the
+        EOF packet.
         """
         buf = self.conn.recv()[0]
         if self.is_eof(buf):
-            eof = protocol.EOFPacket(buf)
+            eof = EOFPacket(buf)
             rowdata = None
         else:
             eof = None
-            rowdata = protocol.RowDataPacket(buf)
+            rowdata = utils.read_lc_string_list(buf[4:])
         return (rowdata, eof)
+    
+    def result_get_rows(self, cnt=None):
+        """Get all rows
+        
+        Returns a tuple with 2 elements: a list with all rows and
+        the EOF packet.
+        """
+        rows = []
+        eof = None
+        rowdata = None
+        while eof is None:
+            (rowdata,eof) = self.result_get_row()
+            if eof is None and rowdata is not None:
+                rows.append(rowdata)
+        return (rows,eof)
 
     def cmd_query(self, query):
         """
@@ -273,19 +258,19 @@ class MySQLBaseProtocol(object):
         If the query doesn't return a result set, the an OKResultPacket
         will be returned.
         """
-        cmd = protocol.CommandPacket()
-        cmd.set_command(ServerCmd.QUERY)
-        cmd.set_argument(query)
-        cmd.create()
-        self.conn.send(cmd.get()) # Errors handled in _handle_error()
-        
-        buf = self.conn.recv()[0]
-        if self.is_ok(buf):
-            # Query does not return a result (INSERT/DELETE/..)
-            return protocol.OKResultPacket(buf)
-
         try:
-            p = protocol.Packet(buf)
+            cmd = CommandPacket()
+            cmd.set_command(ServerCmd.QUERY)
+            cmd.set_argument(query)
+            cmd.create()
+            self.conn.send(cmd.get()) # Errors handled in _handle_error()
+        
+            buf = self.conn.recv()[0]
+            if self.is_ok(buf):
+                # Query does not return a result (INSERT/DELETE/..)
+                return OKResultPacket(buf)
+
+            p = PacketIn(buf)
             (nrflds, fields, eof) = self._handle_resultset(p)
         except:
             raise
@@ -296,7 +281,7 @@ class MySQLBaseProtocol(object):
     
     def _cmd_simple(self, servercmd, arg=''):
         """Makes a simple CommandPacket with no arguments"""
-        cmd = protocol.CommandPacket()
+        cmd = CommandPacket()
         cmd.set_command(servercmd)
         cmd.set_argument(arg)
         cmd.create()
@@ -371,7 +356,7 @@ class MySQLBaseProtocol(object):
             raise
         
         p = Packet(buf)
-        info = str(p.buffer)
+        info = str(p.data)
         
         res = {}
         pairs = info.split('\x20\x20') # Information is separated by 2 spaces
@@ -384,7 +369,8 @@ class MySQLBaseProtocol(object):
                 try:
                     res[lbl] = Decimal(val)
                 except:
-                    raise ValueError, "Got wrong value in COM_STATISTICS information (%s : %s)." % (lbl, val)
+                    raise ValueError(
+                        "Got wrong value in COM_STATISTICS information (%s : %s)." % (lbl, val))
         return res
 
     def cmd_process_info(self):
@@ -393,24 +379,8 @@ class MySQLBaseProtocol(object):
         Returns a list of dictionaries which corresponds to the output of
         SHOW PROCESSLIST of MySQL. The data is converted to Python types.
         """
-        cmd = self._cmd_simple(ServerCmd.PROCESS_INFO)
-        try:
-            self.conn.send(cmd.get())
-            buf = self.conn.recv()[0]
-        except:
-            raise
-        
-        conv = MySQLConverter(use_unicode=True)
-        p = Packet(buf)
-        (nrflds, flds, eof) = self._handle_resultset(p)
-        (rows, eof) = self.result_get_rows()
-        res = []
-        for row in rows:
-            d = {}
-            for f,v in zip(flds,row.values):
-                d[f.name] = conv.to_python(f.get_description(),v)
-            res.append(d)
-        return res
+        raise errors.NotSupportedError(
+            "Not implemented. Use a cursor to get processlist information.")
     
     def cmd_process_kill(self, mypid):
         """Kills a MySQL process using it's ID.
@@ -476,7 +446,7 @@ class MySQLBaseProtocol(object):
         
         cmd = ChangeUserPacket()
         cmd.create(username=username, password=password, database=database,
-            charset=self.charset, seed=self.handshake.data['seed'])
+            charset=self.charset, seed=self.handshake.info['seed'])
         try:
             self.conn.send(cmd.get())
             buf = self.conn.recv()[0]
@@ -484,17 +454,56 @@ class MySQLBaseProtocol(object):
             raise
         
         if not self.is_ok(buf):
-            raise errors.DatabaseError, \
-                "Failed getting OK Packet after changing user to '%s'" % username
+            raise errors.OperationalError(
+                "Failed getting OK Packet after changing user")
         
         return True
 
-class MySQLProtocol41(MySQLBaseProtocol):
+class BasePacket(object):
     
-    def __init__(self, conn, handshake=None):
-        MySQLBaseProtocol.__init__(self, conn, handshake=handshake)
+    def __len__(self):
+        try:
+            return len(self.data)
+        except:
+            return 0
+    
+    def is_valid(self, buf=None):
+        if buf is None:
+            buf = self.data
+
+        (l, n) = (buf[0:3], buf[3])
+        hlength = utils.int3read(l)
+        rlength = len(buf) - 4
+
+        if hlength != rlength:
+            return False
+
+        res = self._is_valid_extra(buf)
+        if res != None:
+            return res
+
+        return True
+    
+    def _is_valid_extra(self, buf):
+        return True
+
+class PacketIn(BasePacket):
+    def __init__(self, buf=None, pktnr=0):
+        self.data = ''
+        self.pktnr = pktnr
+        self.protocol = 10
         
-class Packet(object):
+        if buf:
+            self.is_valid(buf)
+            self.data = buf[4:]
+        
+        if self.data:
+            self._parse()
+    
+    def _parse(self):
+        pass
+            
+class PacketOut(BasePacket):
     """
     Each packet type used in the MySQL Client Protocol is build on the Packet
     class. It defines lots of useful functions for parsing and sending
@@ -502,19 +511,18 @@ class Packet(object):
     """
     
     def __init__(self, buf=None, pktnr=0):
-        self.buffer = ''
-        self.length = 0
+        self.data = ''
         self.pktnr = pktnr
         self.protocol = 10
         
         if buf:
             self.set(buf)
         
-        if self.buffer:
+        if self.data:
             self._parse()
 
     def _make_header(self):
-        h = int3store(self.get_length()) + int1store(self.pktnr)
+        h = utils.int3store(len(self)) + utils.int1store(self.pktnr)
         return h
     
     def _parse(self):
@@ -524,84 +532,62 @@ class Packet(object):
         if not s:
             self.add_null()
         else:
-            self.buffer = self.buffer + s
-            self.length = self.get_length()
+            self.data = self.data + s
     
     def add_1_int(self, i):
-        self.add(int1store(i))
+        self.add(utils.int1store(i))
     
     def add_2_int(self, i):
-        self.add(int2store(i))
+        self.add(utils.int2store(i))
     
     def add_3_int(self, i):
-        self.add(int3store(i))
+        self.add(utils.int3store(i))
     
     def add_4_int(self, i):
-        self.add(int4store(i))
+        self.add(utils.int4store(i))
         
     def add_null(self, nr=1):
         self.add('\x00'*nr)
 
     def get(self):
-        return self._make_header() + self.buffer
+        return self._make_header() + self.data
     
     def get_header(self):
         return self._make_header()
-    
-    def get_length(self):
-        return len(self.buffer)
 
     def set(self, buf):
         if not self.is_valid(buf):
-            raise InterfaceError('Packet not valid.')
+            raise errors.InterfaceError('Packet not valid.')
 
-        self.buffer = buf[4:]
-        self.length = self.get_length()
-    
+        self.data = buf[4:]
+        
     def _is_valid_extra(self, buf=None):
         return None
-        
-    def is_valid(self, buf=None):
-        if not buf:
-            buf = self.buffer
 
-        (l, n) = (buf[0:3], buf[3])
-        hlength = int3read(l)
-        rlength = len(buf) - 4
-
-        if hlength != rlength:
-            return False
-    
-        res = self._is_valid_extra(buf)
-        if res != None:
-            return res
-
-        return True
-
-class Handshake(Packet):
+class Handshake(PacketIn):
     
     def __init__(self, buf=None):
-        Packet.__init__(self, buf)
+        PacketIn.__init__(self, buf)
 
     def _parse(self):
         version = ''
         options = 0
         srvstatus = 0
 
-        buf = self.buffer
-        (buf,self.protocol) = read_int(buf,1)
-        (buf,version) = read_string(buf,end='\x00')
-        (buf,thrdid) = read_int(buf,4)
-        (buf,scramble) = read_bytes(buf, 8)
+        buf = self.data
+        (buf,self.protocol) = utils.read_int(buf,1)
+        (buf,version) = utils.read_string(buf,end='\x00')
+        (buf,thrdid) = utils.read_int(buf,4)
+        (buf,scramble) = utils.read_bytes(buf, 8)
         buf = buf[1:] # Filler 1 * \x00
-        (buf,srvcap) = read_int(buf,2)
-        (buf,charset) = read_int(buf,1)
-        (buf,serverstatus) = read_int(buf,2)
+        (buf,srvcap) = utils.read_int(buf,2)
+        (buf,charset) = utils.read_int(buf,1)
+        (buf,serverstatus) = utils.read_int(buf,2)
         buf = buf[13:] # Filler 13 * \x00
-        (buf,scramble_next) = read_bytes(buf,12)
+        (buf,scramble_next) = utils.read_bytes(buf,12)
         scramble += scramble_next
 
-        self.data = {
+        self.info = {
             'version' : version,
             'thrdid' : thrdid,
             'seed' : scramble,
@@ -612,7 +598,7 @@ class Handshake(Packet):
 
     def get_dict(self):
         self._parse()
-        return self.data
+        return self.info
     
     def _is_valid_extra(self, buf):
         
@@ -621,10 +607,10 @@ class Handshake(Packet):
         
         return True
 
-class Auth(Packet):
+class Auth(PacketOut):
 
     def __init__(self, packet=None, client_flags=0, pktnr=0):
-        Packet.__init__(self, packet, pktnr)
+        PacketOut.__init__(self, packet, pktnr)
         self.client_flags = 0
         self.username = None
         self.password = None
@@ -642,16 +628,19 @@ class Auth(Packet):
         
     def scramble(self, passwd, seed):
         
-        if not passwd:
-            raise AuthError('Failed scrambling password (none given).')
-        
-        hash1 = sha1(passwd).digest()
-        hash2 = sha1(hash1).digest() # Password as found in mysql.user()
-        hash3 = sha1(seed + hash2).digest()
-        xored = [ int1read(h1) ^ int1read(h3) for (h1,h3) in zip(hash1, hash3) ]
-        hash4 = struct.pack('20B', *xored)
-        
-        return hash4
+        hash4 = None
+        try: 
+            hash1 = sha1(passwd).digest()
+            hash2 = sha1(hash1).digest() # Password as found in mysql.user()
+            hash3 = sha1(seed + hash2).digest()
+            xored = [ utils.int1read(h1) ^ utils.int1read(h3) 
+                for (h1,h3) in zip(hash1, hash3) ]
+            hash4 = struct.pack('20B', *xored)
+        except StandardError, e:
+            raise errors.ProgrammingError('Failed scrambling password; %s' % e)
+        else:
+            return hash4
+        return None
         
     def create(self, username=None, password=None, database=None, seed=None):
         self.add_4_int(self.client_flags)
@@ -691,31 +680,31 @@ class ChangeUserPacket(Auth):
 
         self.add_2_int(charset)
 
-class ErrorResultPacket(Packet):
+class ErrorResultPacket(PacketIn):
     
     def __init__(self, buf=None):
         self.errno = 0
         self.errmsg = ''
         self.sqlstate = None
-        Packet.__init__(self, buf)
+        PacketIn.__init__(self, buf)
         
     def _parse(self):
-        buf = self.buffer
+        buf = self.data
         
         if buf[0] != '\xff':
-            raise InterfaceError('Expected an Error Packet.')
+            raise errors.InterfaceError('Expected an Error Packet.')
         buf = buf[1:]
         
-        (buf,self.errno) = read_int(buf, 2)
+        (buf,self.errno) = utils.read_int(buf, 2)
         
         if buf[0] != '\x23':
             # Error without SQLState
             self.errmsg = buf
         else:
-            (buf,self.sqlstate) = read_bytes(buf[1:],5)
+            (buf,self.sqlstate) = utils.read_bytes(buf[1:],5)
             self.errmsg = buf
         
-class OKResultPacket(Packet):
+class OKResultPacket(PacketIn):
     def __init__(self, buf=None):
         self.affected_rows = None
         self.insert_id = None
@@ -723,7 +712,7 @@ class OKResultPacket(Packet):
         self.warning_count = 0
         self.field_count = 0
         self.info_msg = ''
-        Packet.__init__(self, buf)
+        PacketIn.__init__(self, buf)
     
     def __str__(self):
         if self.affected_rows == 1:
@@ -737,23 +726,24 @@ class OKResultPacket(Packet):
         if self.warning_count:
             xtr.append('warnings: %d' % self.warning_count)
             
-        return "Query OK, %d %s affected %s( sec)" % (self.affected_rows, lbl_rows, ', '.join(xtr))
+        return "Query OK, %d %s affected %s( sec)" % (self.affected_rows,
+            lbl_rows, ', '.join(xtr))
 
     def _parse(self):
-        buf = self.buffer
-        (buf,self.field_count)      = read_int(buf,1)
-        (buf,self.affected_rows)    = read_lc_int(buf)
-        (buf,self.insert_id)        = read_lc_int(buf)
-        (buf,self.server_status)    = read_int(buf,2)
-        (buf,self.warning_count)    = read_int(buf,2)
+        buf = self.data
+        (buf,self.field_count) = utils.read_int(buf,1)
+        (buf,self.affected_rows) = utils.read_lc_int(buf)
+        (buf,self.insert_id) = utils.read_lc_int(buf)
+        (buf,self.server_status) = utils.read_int(buf,2)
+        (buf,self.warning_count) = utils.read_int(buf,2)
         if buf:
-            (buf,self.info_msg)     = read_lc_string(buf)
+            (buf,self.info_msg) = utils.read_lc_string(buf)
 
-class CommandPacket(Packet):
+class CommandPacket(PacketOut):
     def __init__(self, cmd=None, arg=None):
         self.command = cmd
         self.argument = arg
-        Packet.__init__(self)
+        PacketOut.__init__(self)
     
     def create(self):
         self.add_1_int(self.command)
@@ -782,19 +772,19 @@ class KillPacket(CommandPacket):
             raise ValueError, "KillPacket needs integer value as argument not larger than 2^32."
         self.argument = arg
 
-class FieldPacket(Packet):
+class FieldPacket(PacketIn):
     def __init__(self, buf=None):
         self.catalog = None
         self.db = None
         self.table = None
         self.org_table = None
         self.name = None
+        self.length = None
         self.org_name = None
         self.charset = None
-        self.length = None
         self.type = None
         self.flags = None
-        Packet.__init__(self, buf)
+        PacketIn.__init__(self, buf)
     
     def __str__(self):
         flags = []
@@ -808,24 +798,24 @@ class FieldPacket(Packet):
                    type: %02x ;
                    flags(%d): %s;
             """ % (self.catalog,self.db,self.table,self.org_table,self.name,self.org_name,
-                self.charset, self.length, self.type,
+                self.charset, len(self), self.type,
                 self.flags, '|'.join(flags))
 
     def _parse(self):
-        buf = self.buffer
+        buf = self.data
         
-        (buf,self.catalog)   = read_lc_string(buf)
-        (buf,self.db)        = read_lc_string(buf)
-        (buf,self.table)     = read_lc_string(buf)
-        (buf,self.org_table) = read_lc_string(buf)
-        (buf,self.name)      = read_lc_string(buf)
-        (buf,self.org_name)  = read_lc_string(buf)
+        (buf,self.catalog) = utils.read_lc_string(buf)
+        (buf,self.db) = utils.read_lc_string(buf)
+        (buf,self.table) = utils.read_lc_string(buf)
+        (buf,self.org_table) = utils.read_lc_string(buf)
+        (buf,self.name) = utils.read_lc_string(buf)
+        (buf,self.org_name) = utils.read_lc_string(buf)
         buf = buf[1:] # filler 1 * \x00
-        (buf,self.charset)   = read_int(buf, 2)
-        (buf,self.length)    = read_int(buf, 4)
-        (buf,self.type)      = read_int(buf, 1)
-        (buf,self.flags)     = read_int(buf, 2)
-        (buf,self.decimal)   = read_int(buf, 1)
+        (buf,self.charset) = utils.read_int(buf, 2)
+        (buf,self.length) = utils.read_int(buf, 4)
+        (buf,self.type) = utils.read_int(buf, 1)
+        (buf,self.flags) = utils.read_int(buf, 2)
+        (buf,self.decimal) = utils.read_int(buf, 1)
         buf = buf[2:] # filler 2 * \x00
 
     def get_description(self):
@@ -845,18 +835,19 @@ class FieldPacket(Packet):
             ~self.flags & FieldFlag.NOT_NULL, # null_ok
             self.flags, # MySQL specific
         )
-class EOFPacket(Packet):
+        
+class EOFPacket(PacketIn):
     def __init__(self, buf=None):
         self.warning_count = None
         self.status_flag = None
-        Packet.__init__(self, buf)
+        PacketIn.__init__(self, buf)
     
     def __str__(self):
         return "EOFPacket: warnings %d / status: %d" % (self.warning_count,self.status_flag)
     
     def _is_valid_extra(self, buf=None):
         if not buf:
-            buf = self.buffer
+            buf = self.data
         else:
             buf = buf[4:]
         if buf[0] == '\xfe' and len(buf) == 5:
@@ -865,29 +856,8 @@ class EOFPacket(Packet):
         return False
     
     def _parse(self):
-        buf = self.buffer
+        buf = self.data
         
         buf = buf[1:] # disregard the first checking byte
-        (buf, self.warning_count) = read_int(buf, 2)
-        (buf, self.status_flag) = read_int(buf, 2)
-
-class RowDataPacket(Packet):
-    """
-    """
-    def __init__(self, buf=None):
-        self.values = []
-        Packet.__init__(self, buf)
-        
-    def _parse(self):
-        buf = self.buffer
-        
-        while buf:
-            if buf[0] == '\xfb':
-                # Field contains a NULL
-                v = None
-                buf = buf[1:]
-            else:
-                # Read field
-                (buf, v) = read_lc_string(buf)
-            self.values.append(v)
-
+        (buf, self.warning_count) = utils.read_int(buf, 2)
+        (buf, self.status_flag) = utils.read_int(buf, 2)

@@ -1,6 +1,8 @@
 
-MySQL Connector/Python
+MySQL Connector/Python                          MySQL driver written in Python
 ==============================================================================
+Copyright 2009 Sun Microsystems, Inc. All rights reserved
+Use is subject to license terms. (See COPYING)
 
 MySQL Connector/Python is implementing the MySQL Client/Server protocol
 completely in Python. This means you don't have to compile anything or MySQL
@@ -18,21 +20,19 @@ Ah, and make backups! :-)
 Dependencies
 =====================
 
-* Python 2.3 or greater.
+* Python 2.4 or greater
 
-That's it.
+Connects to:
+* MySQL 4.1 or higher
+* Will not work with MySQL servers using 'old passwords'!
 
-The MySQL client/server protocol changed a bit since MySQL 4.1, and we only
-support this newer version. But we'll work to make it compatible with MySQL
-earlier than 4.1.
-For now, make sure you are connecting to MySQL version 4.1 or greater.
 
 Installation
 =====================
 
 * Install MySQL Connector/Python:
 
-To install, you'll need Python 2.3 or greater.
+To install, you'll need Python 2.4 or greater.
 Then, execute following (with proper permissions):
 
   shell> python ./setup.py install
@@ -58,7 +58,7 @@ MySQL Server.
 Report problems
 =====================
 
-Report problems to Geert Vanderkelen <geert@mysql.com>
+Report problems to Geert Vanderkelen <geert.vanderkelen@sun.com>
 
 Credits
 =====================

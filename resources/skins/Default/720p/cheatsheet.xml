@@ -17,3 +17,4 @@ http://xbmc.org/wiki/?title=Conditional_Visibility
 <visible>System.Platform.Xbox</visible>
 
 <aspectratio aligny="center">keep|stretch|scale</aspectratio>
+<label>[B]$INFO[Container(500).ListItem.Property(title)][/B] - $INFO[Container(500).ListItem.Property(description)]</label>

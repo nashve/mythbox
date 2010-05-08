@@ -16,15 +16,16 @@
 #  along with this program; if not, write to the Free Software
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #
-
-import livetv
-import logging.config
+import logging
 import mockito
-import mythdb
-import mythtv
 import time
 import unittest
-import util
+
+from mythbox.mythtv.conn import Connection
+from mythbox.mythtv.db import MythDatabase
+from mythbox.settings import MythSettings
+from mythbox.ui.livetv import FileLiveTvBrain
+from mythbox.util import OnDemandConfig
 
 log = logging.getLogger('mythtv.unittest')
 
@@ -34,15 +35,16 @@ class LiveTVBrainTest(unittest.TestCase):
     def setUp(self):
         translator = mockito.Mock()
         platform = mockito.Mock()
-        settings = mythtv.MythSettings(platform, translator)
-        privateConfig = util.OnDemandConfig()
+        bus = mockito.Mock()
+        settings = MythSettings(platform, translator)
+        privateConfig = OnDemandConfig()
         settings.put('mysql_host', privateConfig.get('mysql_host'))
         settings.put('mysql_password', privateConfig.get('mysql_password'))
         settings.put('mysql_database', privateConfig.get('mysql_database'))
         settings.setMythTvHost(privateConfig.get('mythtv_host'))
-        self.db = mythdb.MythDatabase(settings, translator)
-        self.session = mythtv.Connection(settings, self.db, translator, platform)
-        self.brain = livetv.LiveTVBrain(self.session, self.db)
+        self.db = MythDatabase(settings, translator)
+        self.session = Connection(settings, translator, platform, bus, self.db)
+        self.brain = FileLiveTvBrain(self.session, self.db)
     
     def tearDown(self):
         self.session.close()
@@ -74,6 +76,7 @@ class LiveTVBrainTest(unittest.TestCase):
                 t.stopLiveTV()
 
 # =============================================================================
-if __name__ == "__main__":
+if __name__ == '__main__':
+    import logging.config
     logging.config.fileConfig('mythbox_log.ini')
     unittest.main()

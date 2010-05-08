@@ -1,39 +1,42 @@
-# -*- coding: utf-8 -*-
+# MySQL Connector/Python - MySQL driver written in Python.
+# Copyright 2009 Sun Microsystems, Inc. All rights reserved
+# Use is subject to license terms. (See COPYING)
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation.
+# 
+# There are special exceptions to the terms and conditions of the GNU
+# General Public License as it is applied to this software. View the
+# full text of the exception in file EXCEPTIONS-CLIENT in the directory
+# of this software distribution or see the FOSS License Exception at
+# www.mysql.com.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+"""Converting MySQL and Python types
 """
-Connector/Python, native MySQL driver written in Python.
-Copyright 2009 Sun Microsystems, Inc. All rights reserved. Use is subject to license terms.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-"""
-
-import types, re
-import datetime, time
+import re
+import datetime
+import time
 from decimal import Decimal
-from weakref import proxy
 
 import errors
 from constants import FieldType, FieldFlag
 
 class ConverterBase(object):
     
-    db = None
-    python_types = None
-    mysql_types = None
-    charset = 'utf8'
-    
-    def __init__(self, charset=None, use_unicode=True):
+    def __init__(self, charset='utf8', use_unicode=True):
+        self.python_types = None
+        self.mysql_types = None
         self.set_charset(charset)
         self.set_unicode(use_unicode)
         
@@ -58,11 +61,6 @@ class ConverterBase(object):
     
     def quote(self, buf):
         return str(buf)
-    
-    def _get_db(self):
-        if not self.db:
-            raise errors.ProgrammingError, 'Cursor closed.'
-        return self.db
 
 class MySQLConverter(ConverterBase):
     """
@@ -83,40 +81,41 @@ class MySQLConverter(ConverterBase):
                 
         # Python types
         self.python_types = {
-            int                     : int,
-            str                     : self._str_to_mysql,
-            long                    : long,
-            float                   : float,
-            unicode                 : self._unicode_to_mysql,
-            bool                    : self._bool_to_mysql,
-            types.NoneType          : self._none_to_mysql,
-            datetime.datetime       : self._datetime_to_mysql,
-            datetime.date           : self._date_to_mysql,
-            datetime.time           : self._time_to_mysql,
-            time.struct_time        : self._struct_time_to_mysql,
-            datetime.timedelta      : self._timedelta_to_mysql,
+            int : int,
+            str : self._str_to_mysql,
+            long : long,
+            float : float,
+            unicode : self._unicode_to_mysql,
+            bool : self._bool_to_mysql,
+            type(None) : self._none_to_mysql,
+            datetime.datetime : self._datetime_to_mysql,
+            datetime.date : self._date_to_mysql,
+            datetime.time : self._time_to_mysql,
+            time.struct_time : self._struct_time_to_mysql,
+            datetime.timedelta : self._timedelta_to_mysql,
+            Decimal : self._decimal_to_mysql,
         }
         
         # MySQL types
         self.mysql_types = {
-            FieldType.TINY          : self._int,
-            FieldType.SHORT         : self._int,
-            FieldType.INT24         : self._int,
-            FieldType.LONG          : self._long,
-            FieldType.LONGLONG      : self._long,
-            FieldType.FLOAT         : self._float,
-            FieldType.DOUBLE        : self._float,
-            FieldType.DECIMAL       : self._decimal,
-            FieldType.NEWDECIMAL    : self._decimal,
-            FieldType.VAR_STRING    : self._STRING_to_python,
-            FieldType.STRING        : self._STRING_to_python,
-            FieldType.SET           : self._SET_to_python,
-            FieldType.TIME          : self._TIME_to_python,
-            FieldType.DATE          : self._DATE_to_python,
-            FieldType.NEWDATE       : self._DATE_to_python,
-            FieldType.DATETIME      : self._DATETIME_to_python,
-            FieldType.TIMESTAMP     : self._DATETIME_to_python,
-            FieldType.BLOB          : self._STRING_to_python,
+            FieldType.TINY : self._int,
+            FieldType.SHORT : self._int,
+            FieldType.INT24 : self._int,
+            FieldType.LONG : self._long,
+            FieldType.LONGLONG : self._long,
+            FieldType.FLOAT : self._float,
+            FieldType.DOUBLE : self._float,
+            FieldType.DECIMAL : self._decimal,
+            FieldType.NEWDECIMAL : self._decimal,
+            FieldType.VAR_STRING : self._STRING_to_python,
+            FieldType.STRING : self._STRING_to_python,
+            FieldType.SET : self._SET_to_python,
+            FieldType.TIME : self._TIME_to_python,
+            FieldType.DATE : self._DATE_to_python,
+            FieldType.NEWDATE : self._DATE_to_python,
+            FieldType.DATETIME : self._DATETIME_to_python,
+            FieldType.TIMESTAMP : self._DATETIME_to_python,
+            FieldType.BLOB : self._STRING_to_python,
         }
     
     def escape(self, value):
@@ -152,7 +151,7 @@ class MySQLConverter(ConverterBase):
         """
         if isinstance(buf, (int,float,long,Decimal)):
             return str(buf)
-        elif isinstance(buf, types.NoneType):
+        elif isinstance(buf, type(None)):
             return "NULL"
         else:
             # Anything else would be a string
@@ -256,6 +255,18 @@ class MySQLConverter(ConverterBase):
             hours = value.seconds/3600+(value.days*24)
             return '%d:%02d:%02d' % (hours,mins,secs)
 
+        return None
+    
+    def _decimal_to_mysql(self, value):
+        """
+        Converts a decimal.Decimal instance to a string suitable for
+        MySQL.
+        
+        Returns a string or None when not valid.
+        """
+        if isinstance(value, Decimal):
+            return str(value)
+        
         return None
          
     def to_python(self, flddsc, value):

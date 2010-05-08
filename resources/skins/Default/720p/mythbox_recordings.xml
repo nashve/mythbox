@@ -66,6 +66,7 @@
             <texturefocus>button_focus.png</texturefocus>
             <texturenofocus>button_nofocus.png</texturenofocus>
             <pulseonselect>true</pulseonselect>
+            <visible>false</visible>
         </control>
 
         <control type="button" id="602">
@@ -79,11 +80,10 @@
             <texturefocus>button_focus.png</texturefocus>
             <texturenofocus>button_nofocus.png</texturenofocus>
             <pulseonselect>true</pulseonselect>
+            <visible>false</visible>
         </control>
 
-        <!-- ============================================= -->
-        <!--   T A B L E    H E A D E R                    -->          
-        <!-- ============================================= -->              
+<!-- Programs Table Header -->
 
         <control type="image">
             <description>table header</description>
@@ -91,14 +91,27 @@
             <posy>140</posy>
             <width>900</width>
             <height>40</height>
-            <texture>button_nofocus.png</texture>
+            <texture flipx="true">mb-header.png</texture>
         </control>
         
         <control type="label">
             <posx>325</posx>
             <posy>140</posy>
             <width>340</width>
-            <height>40</height>
+            <height>35</height>
+            <font>font12</font>
+            <textcolor>ffddddff</textcolor>
+            <selectedcolor>FFe2ff43</selectedcolor>
+            <align>left</align>
+            <aligny>center</aligny>
+            <label>[B]Date[/B]</label>
+        </control>
+
+        <control type="label">
+            <posx>520</posx>
+            <posy>140</posy>
+            <width>150</width>
+            <height>35</height>
             <font>font12</font>
             <textcolor>ffddddff</textcolor>
             <selectedcolor>FFe2ff43</selectedcolor>
@@ -107,48 +120,7 @@
             <label>[B]Title[/B]</label>
         </control>
 
-        <control type="label">
-            <posx>690</posx>
-            <posy>140</posy>
-            <width>150</width>
-            <height>40</height>
-            <font>font12</font>
-            <textcolor>ffddddff</textcolor>
-            <selectedcolor>FFe2ff43</selectedcolor>
-            <align>left</align>
-            <aligny>center</aligny>
-            <label>[B]Type[/B]</label>
-        </control>
-
-        <control type="label">
-            <posx>825</posx>
-            <posy>140</posy>
-            <width>100</width>
-            <height>40</height>
-            <font>font12</font>
-            <textcolor>ffddddff</textcolor>
-            <selectedcolor>FFe2ff43</selectedcolor>
-            <align>left</align>
-            <aligny>center</aligny>
-            <label>[B]Priority[/B]</label>
-        </control>
-
-        <control type="label">
-            <posx>965</posx>
-            <posy>140</posy>
-            <width>200</width>
-            <height>40</height>
-            <font>font12</font>
-            <textcolor>ffddddff</textcolor>
-            <selectedcolor>FFe2ff43</selectedcolor>
-            <align>left</align>
-            <aligny>center</aligny>
-            <label>[B]Channel[/B]</label>
-        </control>
-
-        <!-- ============================================= -->
-        <!--   S C H E D U L E S    L I S T B O X          -->          
-        <!-- ============================================= -->              
+<!--  Programs Listbox -->
 
         <control type="list" id="600">
             <posx>315</posx>
@@ -159,11 +131,14 @@
             <onright>6000</onright>
             <onup>600</onup>
             <ondown>600</ondown>
-            <viewtype label="Schedules">wide</viewtype>
+            <viewtype label="Programs">wide</viewtype>
             <pagecontrol>6000</pagecontrol>
+            
+            <!-- 
             <scrolltime>0</scrolltime>
             <preloaditems>10</preloaditems>
-
+            -->
+             
             <itemlayout height="30">
 
                 <control type="label">
@@ -176,47 +151,22 @@
                     <selectedcolor>FFe2ff43</selectedcolor>
                     <align>left</align>
                     <aligny>center</aligny>
-                    <label>$INFO[ListItem.Property(title)]</label>
+                    <label>$INFO[ListItem.Property(date)]  $INFO[ListItem.Property(time)]</label>
                 </control>
 
                 <control type="label">
-                    <posx>375</posx>
+                    <posx>200</posx>
                     <posy>0</posy>
-                    <width>150</width>
+                    <width>750</width>
                     <height>30</height>
                     <font>font12</font>
                     <textcolor>DDFFFFFF</textcolor>
                     <selectedcolor>FFe2ff43</selectedcolor>
                     <align>left</align>
                     <aligny>center</aligny>
-                    <label>$INFO[ListItem.Property(scheduleType)]</label>
+                    <label>$INFO[ListItem.Property(title)]</label>
                 </control>
                 
-                <control type="label">
-                    <posx>550</posx>
-                    <posy>0</posy>
-                    <width>100</width>
-                    <height>30</height>
-                    <font>font12</font>
-                    <textcolor>FFFFFFFF</textcolor>
-                    <selectedcolor>FFe2ff43</selectedcolor>
-                    <align>center</align>
-                    <aligny>center</aligny>
-                    <label>$INFO[ListItem.Property(priority)]</label>
-                </control>
-
-                <control type="label">
-                    <posx>650</posx>
-                    <posy>0</posy>
-                    <width>250</width>
-                    <height>30</height>
-                    <font>font12</font>
-                    <textcolor>FFFFFFFF</textcolor>
-                    <selectedcolor>FFe2ff43</selectedcolor>
-                    <align>left</align>
-                    <aligny>center</aligny>
-                    <label>$INFO[ListItem.Property(channelName)]</label>
-                </control>
             </itemlayout>
             
             <focusedlayout height="30">
@@ -248,48 +198,22 @@
                     <selectedcolor>FFe2ff43</selectedcolor>
                     <align>left</align>
                     <aligny>center</aligny>
-                    <label>$INFO[ListItem.Property(title)]</label>
+                    <label>$INFO[ListItem.Property(date)]  $INFO[ListItem.Property(time)]</label>
                 </control>
 
                 <control type="label">
-                    <posx>375</posx>
+                    <posx>200</posx>
                     <posy>0</posy>
-                    <width>150</width>
+                    <width>750</width>
                     <height>30</height>
                     <font>font12</font>
                     <textcolor>DDFFFFFF</textcolor>
                     <selectedcolor>FFe2ff43</selectedcolor>
                     <align>left</align>
                     <aligny>center</aligny>
-                    <label>$INFO[ListItem.Property(scheduleType)]</label>
+                    <label>$INFO[ListItem.Property(title)]</label>
                 </control>
                 
-                <control type="label">
-                    <posx>550</posx>
-                    <posy>0</posy>
-                    <width>100</width>
-                    <height>30</height>
-                    <font>font12</font>
-                    <textcolor>FFFFFFFF</textcolor>
-                    <selectedcolor>FFe2ff43</selectedcolor>
-                    <align>center</align>
-                    <aligny>center</aligny>
-                    <label>$INFO[ListItem.Property(priority)]</label>
-                </control>
-
-                <control type="label">
-                    <posx>650</posx>
-                    <posy>0</posy>
-                    <width>250</width>
-                    <height>30</height>
-                    <font>font12</font>
-                    <textcolor>FFFFFFFF</textcolor>
-                    <selectedcolor>FFe2ff43</selectedcolor>
-                    <align>left</align>
-                    <aligny>center</aligny>
-                    <label>$INFO[ListItem.Property(channelName)]</label>
-                </control>
-
             </focusedlayout>
         </control>
                        
@@ -312,7 +236,7 @@
         <posy>0</posy>
         <width>1280</width>
         <height>128</height>
-        <texture>header.png</texture>
+        <texture>mb-header.png</texture>
     </control>
 
     <control type="image">
@@ -322,7 +246,8 @@
         <height>90</height>
         <texture>mythbox.png</texture>
         <aspectratio align="left">keep</aspectratio>
-        <include>Window_OpenClose_Animation</include>
+        <animation effect="fade" time="200">WindowOpen</animation>
+        <animation effect="fade" time="200">WindowClose</animation>
     </control>
 
     <control type="label">
@@ -335,7 +260,8 @@
         <aligny>center</aligny>
         <textcolor>ffddddff</textcolor>
         <label>[B]Recordings[/B]</label>
-        <include>Window_OpenClose_Animation</include>
+        <animation effect="fade" time="200">WindowOpen</animation>
+        <animation effect="fade" time="200">WindowClose</animation>
     </control>
 
     <control type="label">
@@ -349,63 +275,98 @@
         <font>font12</font>
         <textcolor>ffffffff</textcolor>
         <label>$INFO[System.Date] [COLOR=88FFFFFF] |  $INFO[System.Time][/COLOR]</label>
-        <include>Window_OpenClose_Animation</include>
+        <animation effect="fade" time="200">WindowOpen</animation>
+        <animation effect="fade" time="200">WindowClose</animation>
     </control>
         
-    <!-- ============================================= -->
-    <!--  N A V     B U T T O N S                      -->          
-    <!-- ============================================= -->              
-    <control type="grouplist" id="2000">
-        <description>Buttons</description>
-        <posx>0</posx>
-        <posy>122</posy>
-        <itemgap>1</itemgap>
-        <onup>2000</onup>
-        <ondown>2000</ondown>
-        <onleft>600</onleft>
-        <onright>600</onright>
-        
-        <!-- Copy of include Window_OpenClose_Left_Panel_Animation -->
+    
+<!-- Left nav panel -->    
+
+    <control type="group">
+
         <animation effect="fade" time="200" condition="Skin.HasSetting(Animate_Skin)">WindowOpen</animation>
         <animation effect="fade" time="200" condition="Skin.HasSetting(Animate_Skin)">WindowClose</animation>
         <animation effect="slide" start="-400,0" end="0,0" time="300" tween="quadratic" easing="out" condition="!Skin.HasSetting(Animate_Skin)">WindowOpen</animation>
         <animation effect="slide" end="-400,0" start="0,0" time="300" tween="quadratic" easing="out" condition="!Skin.HasSetting(Animate_Skin)">WindowClose</animation>
-        
-        <control type="button" id="250">
-            <description>Refresh button</description>
-            <label>Refresh</label>
-            <width>285</width>
-            <align>left</align>
-            <textoffsetx>40</textoffsetx>
-            <texturefocus>button_focus.png</texturefocus>
-            <texturenofocus>button_nofocus.png</texturenofocus>
-            <pulseonselect>true</pulseonselect>
-        </control>
-    </control>
     
-    <control type="image">
-        <posx>30</posx>
-        <posy>190</posy>
-        <width>230</width>
-        <height>386</height>
-        <aspectratio aligny="bottom">keep</aspectratio>
-        <!--info aligny="bottom">Container(600).ListItem.Property(poster)</info-->
-        <texture>$INFO[Container(600).ListItem.Property(poster)]</texture>
-        <animation effect="fade" time="500">WindowOpen</animation>
-        <animation effect="fade" time="500">WindowClose</animation>
-        <!-- <visible>!Player.HasVideo</visible>-->
-    </control>
-
-    <control type="image">
-        <posx>30</posx>
-        <posy>586</posy>
-        <width>230</width>
-        <height>386</height>
-        <aspectratio aligny="top">keep</aspectratio>
-        <texture flipy="true" diffuse="diffuse_mirror2.png">$INFO[Container(600).ListItem.Property(poster)]</texture>
-        <animation effect="fade" time="500">WindowOpen</animation>
-        <animation effect="fade" time="500">WindowClose</animation>
-        <!--<visible>!Player.HasVideo</visible>-->
+        <control type="group" id="2000">
+            <description>Buttons</description>
+            <posx>0</posx>
+            <posy>122</posy>
+            <itemgap>1</itemgap>
+<!--            <onup>2000</onup>-->
+<!--            <ondown>2000</ondown>-->
+<!--            <onleft>600</onleft>-->
+<!--            <onright>600</onright>-->
+            
+            <control type="button" id="251">
+                <description>Sort by button</description>
+                <posx>0</posx>
+                <posy>0</posy>
+                <width>285</width>
+                <label>Sort: $INFO[Window.Property(sortBy)]</label>
+                <align>left</align>
+                <textoffsetx>40</textoffsetx>
+                <texturefocus>button_focus.png</texturefocus>
+                <texturenofocus>button_nofocus.png</texturenofocus>
+                <pulseonselect>true</pulseonselect>
+                <onleft>600</onleft>
+                <onright>252</onright>
+                <onup>250</onup>
+                <ondown>250</ondown>
+            </control>
+            <control type="togglebutton" id="252">
+                <description>Sort asc</description>
+                <posx>250</posx>
+                <posy>10</posy>
+                <label>-</label>
+				<texturefocus>mb-scroll-up-focus.png</texturefocus>
+				<texturenofocus>mb-scroll-up.png</texturenofocus>
+				<alttexturefocus>mb-scroll-down-focus.png</alttexturefocus>
+				<alttexturenofocus>mb-scroll-down.png</alttexturenofocus>                
+                <usealttexture>substring(Window.Property(sortAscending),true)</usealttexture>
+                <onleft>251</onleft>
+                <onright>600</onright>
+                <onup>250</onup>
+                <ondown>250</ondown>
+            </control>  
+            <control type="button" id="250">
+                <description>Refresh button</description>
+                <posx>0</posx>
+                <posy>40</posy>
+                <label>Refresh</label>
+                <width>285</width>
+                <align>left</align>
+                <textoffsetx>40</textoffsetx>
+                <texturefocus>button_focus.png</texturefocus>
+                <texturenofocus>button_nofocus.png</texturenofocus>
+                <pulseonselect>true</pulseonselect>
+                <onup>251</onup>
+                <ondown>251</ondown>
+                <onleft>600</onleft>
+                <onright>600</onright>
+            </control>
+        </control>
+            
+        <control type="image">
+            <posx>30</posx>
+            <posy>190</posy>
+            <width>230</width>
+            <height>386</height>
+            <aspectratio aligny="bottom">keep</aspectratio>
+            <texture background="false">$INFO[Container(600).ListItem.Property(poster)]</texture>
+            <fadetime>400</fadetime>
+        </control>
+  
+        <control type="image">
+            <posx>30</posx>
+            <posy>586</posy>
+            <width>230</width>
+            <height>386</height>
+            <aspectratio aligny="top">keep</aspectratio>
+            <texture background="false" flipy="true" diffuse="diffuse_mirror2.png">$INFO[Container(600).ListItem.Property(poster)]</texture>
+            <fadetime>400</fadetime>
+        </control>
     </control>
 
     <control type="multiimage">

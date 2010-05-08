@@ -1,21 +1,27 @@
-# -*- coding: utf-8 -*-
-"""
-Connector/Python, native MySQL driver written in Python.
-Copyright 2009 Sun Microsystems, Inc. All rights reserved. Use is subject to license terms.
+# MySQL Connector/Python - MySQL driver written in Python.
+# Copyright 2009 Sun Microsystems, Inc. All rights reserved
+# Use is subject to license terms. (See COPYING)
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation.
+# 
+# There are special exceptions to the terms and conditions of the GNU
+# General Public License as it is applied to this software. View the
+# full text of the exception in file EXCEPTIONS-CLIENT in the directory
+# of this software distribution or see the FOSS License Exception at
+# www.mysql.com.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+"""Utilities
 """
 
 __MYSQL_DEBUG__ = False
@@ -28,6 +34,13 @@ def int1read(c):
     
     Returns integer.
     """
+    if isinstance(c,int):
+        if c < 0 or c > 254:
+            raise ValueError('excepts int 0 <= x <= 254')
+        return c
+    elif len(c) > 1:
+        raise ValueError('excepts 1 byte long bytes-object or int')
+        
     return int('%02x' % ord(c),16)
 
 def int2read(s):
@@ -66,6 +79,18 @@ def int4read(s):
         s = s + '\x00'*(4-len(s))
     return struct.unpack('<I', s)[0]
 
+def int8read(s):
+    """
+    Takes a string of 8 bytes and unpacks it as integer.
+
+    Returns integer.
+    """
+    if len(s) > 8:
+        raise ValueError('int4read require s length of maximum 8 bytes')
+    elif len(s) < 8:
+        s = s + '\x00'*(8-len(s))
+    return struct.unpack('<Q', s)[0]
+
 def intread(s):
     """
     Takes a string and unpacks it as an integer.
@@ -85,6 +110,7 @@ def intread(s):
         2 : int2read,
         3 : int3read,
         4 : int4read,
+        8 : int8read,
     }
     return fs[l](s)
 
@@ -201,19 +227,20 @@ def read_lc_string(buf):
         return (buf[1:], None)
         
     l = lsize = start = 0
-    fst = l = ord(buf[0])
+    fst = buf[0]
     # Remove the type byte, we got the length information.
     buf = buf[1:]
     
-    if fst <= 250:
+    if fst <= '\xFA':
         # Returns result right away.
+        l = ord(fst)
         s = buf[:l]
         return (buf[l:], s)
-    elif fst == 252:
+    elif fst == '\xFC':
         lsize = 2
-    elif fst == 253:
+    elif fst == '\xFD':
         lsize = 3
-    elif fst == 254:
+    elif fst == '\xFE':
         lsize = 4
     
     l = intread(buf[0:lsize])
@@ -226,25 +253,71 @@ def read_lc_string(buf):
     
     return (buf, s)
 
+def read_lc_string_list(buf):
+    """
+    Reads all length encoded strings from the given buffer.
+    
+    This is exact same function as read_lc_string() but duplicated
+    in hopes for performance gain when reading results.
+    """
+    strlst = []
+    
+    while buf:
+        if buf[0] == '\xfb':
+            # NULL value
+            buf = buf[1:]
+            strlst.append(None)
+            continue
+        
+        l = lsize = start = 0
+        fst = buf[0]
+        # Remove the type byte, we got the length information.
+        buf = buf[1:]
+    
+        if fst <= '\xFA':
+            # Returns result right away.
+            l = ord(fst)
+            strlst.append(buf[:l])
+            buf = buf[l:]
+            continue
+        elif fst == '\xFC':
+            lsize = 2
+        elif fst == '\xFD':
+            lsize = 3
+        elif fst == '\xFE':
+            lsize = 4
+    
+        l = intread(buf[0:lsize])
+        # Chop of the bytes which hold the length
+        buf = buf[lsize:]
+        # Get the actual string
+        s = buf[0:l]
+        # Set the buffer so we can return it
+        buf = buf[l:]
+        
+        strlst.append(s)
+
+    return strlst
+
 def read_string(buf, end=None, size=None):
     """
     Reads a string up until a character or for a given size.
     
     Returns a tuple (trucated buffer, string).
     """
-    l = 0
-    if end:
-        # Get the length of string we need to get
-        while buf[l] != end:
-            l += 1
-        if l > 0:
-            return (buf[l+1:], buf[0:l])
-    elif size:
-        return read_bytes(buf,size)
-    else:
-        ValueError('read_string() needs either end or size.')
+    if end is None and size is None:
+        raise ValueError('read_string() needs either end or size')
     
-    return (buf, None)
+    if end is not None:
+        try:
+            idx = buf.index(end)
+        except (ValueError), e:
+            raise ValueError("end byte not precent in buffer")
+        return (buf[idx+1:], buf[0:idx])
+    elif size is not None:
+        return read_bytes(buf,size)
+    
+    raise ValueError('read_string() needs either end or size (weird)')
     
 def read_int(buf, size):
     """
@@ -254,20 +327,23 @@ def read_int(buf, size):
     """
     if len(buf) == 0:
         raise ValueError("Empty buffer.")
+    if not isinstance(size,int) or (size not in [1,2,3,4,8]):
+        raise ValueError('size should be int in range of 1..4 or 8')
 
     i = None
-    if size < 1 or size > 4:
-        raise ValueError('read_int requires size of 1,2,3 or 4')
+    if size == 1:
+        i = int1read(buf[0])
+    elif size == 2:
+        i = int2read(buf[0:2])
+    elif size == 3:
+        i = int3read(buf[0:3])
+    elif size == 4:
+        i = int4read(buf[0:4])
+    elif size == 8:
+        i = int8read(buf[0:8])
     else:
-        if size == 1:
-            i = int1read(buf[0])
-        elif size == 2:
-            i = int2read(buf[0:2])
-        elif size == 3:
-            i = int3read(buf[0:3])
-        elif size == 4:
-            i = int4read(buf[0:4])
-
+        raise ValueError('size should be int in range of 1..4 or 8 (weird)')
+        
     return (buf[size:], int(i))
 
 def read_lc_int(buf):
@@ -276,6 +352,9 @@ def read_lc_int(buf):
     
     Returns a tuple with buffer less the integer and the integer read.
     """
+    if len(buf) == 0:
+        raise ValueError("Empty buffer.")
+    
     (buf,s) = read_int(buf,1)    
     if s == 251:
         l = 0
@@ -283,7 +362,7 @@ def read_lc_int(buf):
     elif s == 252:
         (buf,i) = read_int(buf,2)
     elif s == 253:
-        (buf,i) = read_int(buf,4)
+        (buf,i) = read_int(buf,3)
     elif s == 254:
         (buf,i) = read_int(buf,8)
     else:

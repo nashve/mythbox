@@ -1,6 +1,6 @@
 #
 #  MythBox for XBMC - http://mythbox.googlecode.com
-#  Copyright (C) 2009 analogue@yahoo.com
+#  Copyright (C) 2010 analogue@yahoo.com
 #
 #  This program is free software; you can redistribute it and/or
 #  modify it under the terms of the GNU General Public License
@@ -22,6 +22,8 @@ import traceback
 import xbmc
 import xbmcgui
 
+from mythbox.bus import EventBus
+
 # =============================================================================
 class BootStrapper(object):
     
@@ -34,11 +36,11 @@ class BootStrapper(object):
         try:
             self.bootstrapLogger()
             self.bootstrapPlatform()
-            self.bootstrapLegacy()
-            #self.bootstrapMySql()
+            self.bootstrapEventBus()            
             self.bootstrapCaches()
             self.bootstrapSettings()
             self.bootstrapUpdater()
+            self.bootstrapFeeds()
             self.bootstrapHomeScreen()
         except Exception, ex:
             self.handleFailure(ex)
@@ -69,38 +71,28 @@ class BootStrapper(object):
     
     def bootstrapPlatform(self):
         self.stage = 'Initializing Platform'
-        import mythbox
-        self.platform = mythbox.getPlatform()
+        from mythbox.platform import getPlatform
+        self.platform = getPlatform()
         self.platform.addLibsToSysPath()
         self.log.info('Mythbox Platform Initialized')
+
+    def bootstrapEventBus(self):
+        self.bus = EventBus()
         
-    def bootstrapLegacy(self):
-        self.stage = 'Initializing'
-        import util
-        util.initialize()
-
-#    def bootstrapMySql(self):
-#        self.stage = 'Initializing MySQL'
-#        # MySQL rigamarole..
-#        import platform
-#        mysqlVerifier = platform.MySqlVerifier(self.platform)
-#        (mySqlBindingDir, mySqlLibDir) = mysqlVerifier.getWorkingMySqlConfig()  
-#        sys.path.append(mySqlBindingDir)
-#        sys.path.append(mySqlLibDir)
-
     def bootstrapCaches(self):
         self.stage = 'Initializing Caches'
         
-        import util
-        self.translator = util.NativeTranslator(self.platform.getScriptDir())
-
-        import filecache
-        import injected
+        from mythbox.util import NativeTranslator
+        from mythbox.filecache import FileCache, FileSystemResolver, HttpResolver, MythThumbnailFileCache
+        from mythbox.mythtv.resolver import MythChannelIconResolver, MythThumbnailResolver 
+        from os.path import join
+        
         dataDir = self.platform.getScriptDataDir()
-        self.mythThumbnailCache = filecache.FileCache(os.path.join(dataDir, 'mythThumbnailCache'), injected.InjectedMythThumbnailResolver())
-        self.mythChannelIconCache = filecache.FileCache(os.path.join(dataDir, 'mythChannelIconCache'), injected.InjectedMythChannelIconResolver())
-        self.fileCache = filecache.FileCache(os.path.join(dataDir, 'networkCache'), filecache.FileSystemResolver())
-        self.httpCache = filecache.FileCache(os.path.join(dataDir, 'httpCache'), filecache.HttpResolver())
+        self.translator = NativeTranslator(self.platform.getScriptDir())
+        self.mythThumbnailCache = MythThumbnailFileCache(join(dataDir, 'mythThumbnailCache'), MythThumbnailResolver(), self.bus)
+        self.mythChannelIconCache = FileCache(join(dataDir, 'mythChannelIconCache'), MythChannelIconResolver())
+        self.fileCache = FileCache(join(dataDir, 'networkCache'), FileSystemResolver())
+        self.httpCache = FileCache(join(dataDir, 'httpCache'), HttpResolver())
 
         self.cachesByName = {
             'mythThumbnailCache'  : self.mythThumbnailCache, 
@@ -111,38 +103,73 @@ class BootStrapper(object):
         
     def bootstrapSettings(self):
         self.stage = 'Initializing Settings'
-        import mythtv
-        import fanart
-        self.settings = mythtv.MythSettings(self.platform, self.translator, 'settings.xml')
+        from fanart import FanArt
+        from mythbox.settings import MythSettings
+        self.settings = MythSettings(self.platform, self.translator, 'settings.xml', self.bus)
         self.log.debug('Settings = \n %s' % self.settings)
-        self.fanArt = fanart.FanArt(self.platform, self.httpCache, self.settings)
-        self.settings.addListener(LogSettingsListener())
-
+        self.fanArt = FanArt(self.platform, self.httpCache, self.settings)
+        
+        import socket
+        socket.setdefaulttimeout(20)
+        
+        # eww...messy
+        logSettingsListener = LogSettingsListener()
+        self.settings.addListener(logSettingsListener)
+        logSettingsListener.settingChanged('logging_enabled', 'DontCare', self.settings.get('logging_enabled'))
+        
     def bootstrapUpdater(self):
         self.stage = 'Initializing Updater'
-        import updater
-        updater.UpdateChecker(self.platform).isUpdateAvailable()
+        from mythbox.updater import UpdateChecker
+        UpdateChecker(self.platform).isUpdateAvailable()
         
+    def bootstrapFeeds(self):
+        from mythbox.feeds import FeedHose
+        self.feedHose = FeedHose(self.settings, self.bus)
+            
     def bootstrapHomeScreen(self):
-        import mythbox.home
-        mythbox.home.HomeWindow(
+        from mythbox.ui.home import HomeWindow
+        HomeWindow(
             'mythbox_home.xml', 
             os.getcwd(), 
             settings=self.settings, 
             translator=self.translator, 
             platform=self.platform, 
             fanArt=self.fanArt, 
-            cachesByName=self.cachesByName).doModal()
+            cachesByName=self.cachesByName,
+            bus=self.bus,
+            feedHose=self.feedHose).doModal()
 
 # =============================================================================            
 class LogSettingsListener(object):
     
+    loggerNames = ['unittest', 
+               'mysql' , 
+               'core' , 
+               'method' , 
+               'skin' , 
+               'wire' , 
+               'ui' , 
+               'perf' , 
+               'fanart',
+               'settings',
+               'cache',
+               'event',
+               'inject']
+
     def settingChanged(self, tag, old, new):
         if tag == 'logging_enabled':
             import logging
             logging.root.debug('Setting changed: %s %s %s' % (tag, old, new))
-            if new == 'True':
-                logging.root.disabled = True
-            elif new == 'False':
-                logging.root.disabled = False
+
+            if new == 'True': 
+                level = logging.DEBUG
+            else: 
+                level = logging.WARN
                 
+            for name in self.loggerNames:
+                logger = logging.getLogger('mythtv.%s' %  name)
+                logger.setLevel(level)
+            
+            # TODO: Adjust xbmc loglevel 
+            #savedXbmcLogLevel = xbmc.executehttpapi("GetLogLevel").replace("<li>", "")
+            #xbmc.executehttpapi('SetLogLevel(3)')

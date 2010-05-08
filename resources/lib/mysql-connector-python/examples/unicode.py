@@ -2,10 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import sys, os
-sys.path.append('../')
 
 import mysql.connector
-from config import Config
 
 """
 
@@ -21,14 +19,9 @@ unicode character correctly. Check if the encoding of your terminal
 is set to UTF-8.
 """
 
-if __name__ == '__main__':
-    #
-    # Configure MySQL login and database to use in config.py
-    #
-    db = mysql.connector.Connect(**Config.dbinfo())
+def main(config):
+    db = mysql.connector.Connect(**config)
     cursor = db.cursor()
-    
-    print info
     
     # Show the unicode string we're going to use
     unistr = u"\u00bfHabla espa\u00f1ol?"
@@ -60,3 +53,12 @@ if __name__ == '__main__':
     # Cleaning up, dropping the table again
     cursor.execute(stmt_drop)
     db.close()
+
+if __name__ == '__main__':
+    #
+    # Configure MySQL login and database to use in config.py
+    #
+    from config import Config
+    config = Config.dbinfo().copy()
+    print info
+    main(config)

@@ -70,9 +70,12 @@
             <ondown>600</ondown>
             <viewtype label="535">list</viewtype>
             <pagecontrol>6000</pagecontrol>
+            
+            <!-- 
             <scrolltime>0</scrolltime>
             <preloaditems>10</preloaditems>
-
+            -->
+               
             <itemlayout height="62">
                 
                 <control type="image">
@@ -239,17 +242,18 @@
             <posy>140</posy>
             <width>16</width>
             <height>16</height>
-            <texturenofocus>scroll-up.png</texturenofocus>
-            <texturefocus>scroll-up-focus.png</texturefocus>
+            <texturenofocus>mb-scroll-up.png</texturenofocus>
+            <texturefocus>mb-scroll-up-focus.png</texturefocus>
             <onclick>PageUp(6000)</onclick>
-            <visible>Control.IsVisible(6000)</visible>
+            <visible>Control.IsVisible(6000) + false</visible>
         </control>
+        
         <control type="scrollbar" id="6000">
             <description>Scroll Bar</description>
             <posx>1215</posx>
-            <posy>156</posy>
+            <posy>140</posy>
             <width>16</width>
-            <height>468</height>
+            <height>500</height>
     
             <texturesliderbackground border="2,2,2,2">scrollbar_bar_back2.png</texturesliderbackground> 
             <texturesliderbar border="2,16,2,16">scrollbar_bar.png</texturesliderbar> 
@@ -276,10 +280,10 @@
             <posy>624</posy>
             <width>16</width>
             <height>16</height>
-            <texturenofocus>scroll-down.png</texturenofocus>
-            <texturefocus>scroll-down-focus.png</texturefocus>
+            <texturenofocus>mb-scroll-down.png</texturenofocus>
+            <texturefocus>mb-scroll-down-focus.png</texturefocus>
             <onclick>PageDown(6000)</onclick>
-            <visible>Control.IsVisible(6000)</visible>
+            <visible>Control.IsVisible(6000) + false</visible>
         </control>
 
 <!--        <control type="image" id="4010">-->
@@ -311,7 +315,7 @@
       <posy>0</posy>
       <width>1280</width>
       <height>128</height>
-      <texture>header.png</texture>
+      <texture>mb-header.png</texture>
     </control>
 
     <control type="image">
@@ -321,7 +325,8 @@
         <height>90</height>
         <texture>mythbox.png</texture>
         <aspectratio align="left">keep</aspectratio>
-        <include>Window_OpenClose_Animation</include>
+        <animation effect="fade" time="200">WindowOpen</animation>
+        <animation effect="fade" time="200">WindowClose</animation>
     </control>
 
     <control type="label">
@@ -334,7 +339,8 @@
       <aligny>center</aligny>
       <textcolor>ffffffff</textcolor>
       <label>[B]Watch TV[/B]</label>
-      <include>Window_OpenClose_Animation</include>
+      <animation effect="fade" time="200">WindowOpen</animation>
+      <animation effect="fade" time="200">WindowClose</animation>
     </control>
 
     <control type="label">
@@ -348,85 +354,74 @@
       <font>font12</font>
       <textcolor>ffffffff</textcolor>
       <label>$INFO[System.Date] [COLOR=88FFFFFF] |  $INFO[System.Time][/COLOR]</label>
-      <include>Window_OpenClose_Animation</include>
-    </control>
-        
-    <!-- ============================================= -->
-    <!--  N A V     B U T T O N S                      -->          
-    <!-- ============================================= -->              
-    <control type="grouplist" id="2000">
-        <description>Buttons</description>
-        <posx>0</posx>
-        <posy>122</posy>
-        <itemgap>1</itemgap>
-        <onup>2000</onup>
-        <ondown>2000</ondown>
-        <onleft>600</onleft>
-        <onright>600</onright>
-        
-        <!-- Copy of include Window_OpenClose_Left_Panel_Animation -->
-        <animation effect="fade" time="200" condition="Skin.HasSetting(Animate_Skin)">WindowOpen</animation>
-        <animation effect="fade" time="200" condition="Skin.HasSetting(Animate_Skin)">WindowClose</animation>
-        <animation effect="slide" start="-400,0" end="0,0" time="300" tween="quadratic" easing="out" condition="!Skin.HasSetting(Animate_Skin)">WindowOpen</animation>
-        <animation effect="slide" end="-400,0" start="0,0" time="300" tween="quadratic" easing="out" condition="!Skin.HasSetting(Animate_Skin)">WindowClose</animation>
-        
-        <control type="button" id="250">
-            <description>Refresh button</description>
-            <label>Refresh</label>
-            <width>285</width>
-            <align>left</align>
-            <textoffsetx>40</textoffsetx>
-            <texturefocus>button_focus.png</texturefocus>
-            <texturenofocus>button_nofocus.png</texturenofocus>
-            <pulseonselect>true</pulseonselect>
-            <enable>!substring(Window.Property(busy),true)</enable>
-        </control>
-         
-    </control>
-    
-    <control type="image">
-        <posx>30</posx>
-        <posy>190</posy>
-        <width>230</width>
-        <height>386</height>
-        <aspectratio aligny="bottom">keep</aspectratio>
-        <!--info aligny="bottom">Container(600).ListItem.Property(poster)</info-->
-        <texture>$INFO[Container(600).ListItem.Property(poster)]</texture>
-        <animation effect="fade" time="500">WindowOpen</animation>
-        <animation effect="fade" time="500">WindowClose</animation>
-        <visible>!Player.HasVideo</visible>
+      <animation effect="fade" time="200">WindowOpen</animation>
+      <animation effect="fade" time="200">WindowClose</animation>
     </control>
 
-    <control type="image">
-        <posx>30</posx>
-        <posy>586</posy>
-        <width>230</width>
-        <height>386</height>
-        <aspectratio aligny="top">keep</aspectratio>
-        <texture flipy="true" diffuse="diffuse_mirror2.png">$INFO[Container(600).ListItem.Property(poster)]</texture>
-        <animation effect="fade" time="500">WindowOpen</animation>
-        <animation effect="fade" time="500">WindowClose</animation>
-        <visible>!Player.HasVideo</visible>
+<!--  Left nav panel -->
+
+    <control type="group">
+    
+      <!-- Copy of include Window_OpenClose_Left_Panel_Animation -->
+      <animation effect="fade" time="200" condition="Skin.HasSetting(Animate_Skin)">WindowOpen</animation>
+      <animation effect="fade" time="200" condition="Skin.HasSetting(Animate_Skin)">WindowClose</animation>
+      <animation effect="slide" start="-400,0" end="0,0" time="300" tween="quadratic" easing="out" condition="!Skin.HasSetting(Animate_Skin)">WindowOpen</animation>
+      <animation effect="slide" end="-400,0" start="0,0" time="300" tween="quadratic" easing="out" condition="!Skin.HasSetting(Animate_Skin)">WindowClose</animation>
+            
+      <control type="grouplist" id="2000">
+          <description>Buttons</description>
+          <posx>0</posx>
+          <posy>122</posy>
+          <itemgap>1</itemgap>
+          <onup>2000</onup>
+          <ondown>2000</ondown>
+          <onleft>600</onleft>
+          <onright>600</onright>
+          
+          <control type="button" id="250">
+              <description>Refresh button</description>
+              <label>Refresh</label>
+              <width>285</width>
+              <align>left</align>
+              <textoffsetx>40</textoffsetx>
+              <texturefocus>button_focus.png</texturefocus>
+              <texturenofocus>button_nofocus.png</texturenofocus>
+              <pulseonselect>true</pulseonselect>
+              <enable>!substring(Window.Property(busy),true)</enable>
+          </control>
+           
+      </control>
+    
+      <control type="image">
+          <posx>30</posx>
+          <posy>190</posy>
+          <width>230</width>
+          <height>386</height>
+          <aspectratio aligny="bottom">keep</aspectratio>
+          <fadetime>400</fadetime>
+          <texture>$INFO[Container(600).ListItem.Property(poster)]</texture>
+          <visible>!Player.HasVideo</visible>
+      </control>
+  
+      <control type="image">
+          <posx>30</posx>
+          <posy>586</posy>
+          <width>230</width>
+          <height>386</height>
+          <aspectratio aligny="top">keep</aspectratio>
+          <fadetime>400</fadetime>          
+          <texture flipy="true" diffuse="diffuse_mirror2.png">$INFO[Container(600).ListItem.Property(poster)]</texture>
+          <visible>!Player.HasVideo</visible>
+      </control>
+
     </control>
 
-    <!-- 
-    <control type="label">
-      <posx>30</posx>
-      <posy>390</posy>
-      <width>100</width>
-      <height>35</height>
-      <align>left</align>
-      <textcolor>ffffffff</textcolor>
-      <label>$INFO[Window.Property(busy)]</label>
-    </control>
-    -->
-    
     <control type="multiimage">
         <description>Busy animation</description>
-        <posx>708</posx>
-        <posy>326</posy>
-        <width>128</width>
-        <height>128</height>
+        <posx>722</posx>
+        <posy>340</posy>
+        <width>100</width>
+        <height>100</height>
         <imagepath>busy</imagepath>
         <timeperimage>50</timeperimage>
         <fadetime>0</fadetime>

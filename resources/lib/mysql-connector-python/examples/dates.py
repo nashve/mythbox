@@ -2,14 +2,11 @@
 # -*- coding: utf-8 -*-
 
 import sys, os
-sys.path.append('../')
 
 from datetime import datetime
 import time
 
 import mysql.connector
-from config import Config
-
 
 """
 
@@ -19,11 +16,8 @@ Example using MySQL Connector/Python showing:
 
 """
 
-if __name__ == '__main__':
-    #
-    # Configure MySQL login and database to use in config.py
-    #
-    db = mysql.connector.Connect(**Config.dbinfo())
+def main(config):
+    db = mysql.connector.Connect(**config)
     cursor = db.cursor()
     
     tbl = 'myconnpy_dates'
@@ -58,21 +52,37 @@ if __name__ == '__main__':
         stmt_insert = "INSERT INTO %s (c1,c2,c3,c4) VALUES (%%s,%%s,%%s,FROM_UNIXTIME(%%s))" % (tbl)
         try:
             cursor.execute(stmt_insert, d)
-        except (mysql.connector.errors.InterfaceError, TypeError) as e:
+        except (mysql.connector.errors.InterfaceError, TypeError), e:
             print "Failed inserting %s\nError: %s\n" % (d,e)
+            raise
             
-        if cursor.warnings:
-            print cursor.warnings
+        warnings = cursor.fetchwarnings()
+        if warnings:
+            print warnings
 
     # Read the names again and print them
     stmt_select = "SELECT * FROM %s ORDER BY id" % (tbl)
     cursor.execute(stmt_select)
 
     for row in cursor.fetchall():
-    	print row
+    	print "%3s | %10s | %19s | %8s | %19s |" % (
+    	    row[0],
+    	    row[1],
+    	    row[2],
+    	    row[3],
+    	    row[4],
+    	)
     	
     # Cleaning up, dropping the table again
     cursor.execute(stmt_drop)
 
     cursor.close()
     db.close()
+
+if __name__ == '__main__':
+    #
+    # Configure MySQL login and database to use in config.py
+    #
+    from config import Config
+    config = Config.dbinfo().copy()
+    main(config)

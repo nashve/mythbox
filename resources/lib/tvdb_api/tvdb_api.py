@@ -3,7 +3,6 @@
 #author:dbr/Ben
 #project:tvdb_api
 #repository:http://github.com/dbr/tvdb_api
-
 #license:Creative Commons GNU GPL v2
 # (http://creativecommons.org/licenses/GPL/2.0/)
 
@@ -17,7 +16,7 @@ Example usage:
 u'Cabin Fever'
 """
 __author__ = "dbr/Ben"
-__version__ = "1.0"
+__version__ = "1.2.2"
 
 import os
 import sys
@@ -29,8 +28,11 @@ import logging
 try:
     import xml.etree.cElementTree as ElementTree
 except ImportError:
-    import elementtree.ElementTree as ElementTree
-
+    try:
+        import xml.etree.ElementTree as ElementTree
+    except ImportError:
+        import elementtree.ElementTree as ElementTree
+        
 from cache import CacheHandler
 
 from tvdb_ui import BaseUI, ConsoleUI
@@ -151,7 +153,7 @@ class Season(dict):
         instances.
 
         >>> t = Tvdb()
-        >>> t['scrubs'][1].search('first')
+        >>> t['scrubs'][1].search('first day')
         [<Episode 01x01 - My First Day>]
         >>>
 
@@ -410,23 +412,47 @@ class Tvdb:
         """
         return os.path.join(tempfile.gettempdir(), "tvdb_api")
 
-    def _getetsrc(self, url):
-        """Loads a URL sing caching, returns an ElementTree of the source
-        """
+    def _loadUrl(self, url, recache = False):
         try:
-            self.log.debug("Retrieving ElementTree source for URL %s" % (url))
+            self.log.debug("Retrieving URL %s" % url)
             resp = self.urlopener.open(url)
             if 'x-local-cache' in resp.headers:
                 self.log.debug("URL %s was cached in %s" % (
                     url,
                     resp.headers['x-local-cache'])
                 )
-            src = resp.read()
-        except IOError, errormsg:
+                if recache:
+                    self.log.debug("Attempting to recache %s" % url)
+                    resp.recache()
+        except urllib2.URLError, errormsg:
             raise tvdb_error("Could not connect to server: %s" % (errormsg))
         #end try
-        et = ElementTree.fromstring(src)
-        return et
+
+        return resp.read()
+
+    def _getetsrc(self, url):
+        """Loads a URL sing caching, returns an ElementTree of the source
+        """
+        src = self._loadUrl(url)
+        try:
+            return ElementTree.fromstring(src)
+        except SyntaxError:
+            src = self._loadUrl(url, recache=True)
+            try:
+                return ElementTree.fromstring(src)
+            except SyntaxError, exceptionmsg:
+                errormsg = "There was an error with the XML retrieved from thetvdb.com:\n%s" % (
+                    exceptionmsg
+                )
+
+                if self.config['cache_enabled']:
+                    errormsg += "\nFirst try emptying the cache folder at..\n%s" % (
+                        self.config['cache_location']
+                    )
+
+                errormsg += "\nIf this does not resolve the issue, please try again later. If the error persists, report a bug on"
+                errormsg += "\nhttp://dbr.lighthouseapp.com/projects/13342-tvdb_api/overview\n"
+                raise tvdb_error(errormsg)
     #end _getetsrc
 
     def _setItem(self, sid, seas, ep, attrib, value):
