@@ -1,23 +1,27 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-Connector/Python, native MySQL driver written in Python.
-Copyright 2009 Sun Microsystems, Inc. All rights reserved. Use is subject to license terms.
+# MySQL Connector/Python - MySQL driver written in Python.
+# Copyright 2009 Sun Microsystems, Inc. All rights reserved
+# Use is subject to license terms. (See COPYING)
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-"""
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation.
+# 
+# There are special exceptions to the terms and conditions of the GNU
+# General Public License as it is applied to this software. View the
+# full text of the exception in file EXCEPTIONS-CLIENT in the directory
+# of this software distribution or see the FOSS License Exception at
+# www.mysql.com.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
 """
 Simple CLI using the Connector/Python. It does not take arguments so
@@ -40,8 +44,7 @@ Type "help", "copyright", "credits" or "license" for more information.
 >>> show tables;
 >>> create table t1 (id int);
 >>> show tables;
-[u't1']
-
+(u't1')
 """
 
 import sys
@@ -85,12 +88,16 @@ class MySQLConsole(code.InteractiveConsole):
       try:
           cursor = self.mysql.cursor()
           cursor.execute(line)
-          rows = cursor.fetchall()
-      except mysql.connector.errors.InterfaceError, e:
+      except mysql.connector.errors.Error, e:
           print e.errmsglong
-      else:
+          return
+      
+      try:
+          rows = cursor.fetchall()
           for row in rows:
               print row
+      except:
+          pass
     
     def _do_use(db):
       try:
@@ -120,9 +127,13 @@ if __name__ == '__main__':
         sys.exit(1)
     
     console = MySQLConsole(db)
+    myconnpy_version = "%s-%s" % (
+        '.'.join(map(str,mysql.connector.__version__[0:3])),
+        mysql.connector.__version__[3])
     
     print "Your MySQL connection ID is %d." % (db.get_server_threadid())
-    print "Server version: %s" % (db.get_server_version())
+    print "Server version: %s" % (db.get_server_info())
+    print "MySQL Connector/Python v%s" % (myconnpy_version)
     print
     
     console.interact()

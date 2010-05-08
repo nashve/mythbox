@@ -8,7 +8,7 @@ import setuptools
 
 # version of the software; in SVN this represents the _next_ release.
 # setuptools will automatically add 'dev-rREVISION'.
-version = '4.1'
+version = '4.5.1'
 
 home_page = 'http://imdbpy.sf.net/'
 
@@ -39,6 +39,8 @@ Intended Audience :: Developers
 Intended Audience :: End Users/Desktop
 License :: OSI Approved :: GNU General Public License (GPL)
 Natural Language :: English
+Natural Language :: Italian
+Natural Language :: Turkish
 Programming Language :: Python
 Programming Language :: C
 Operating System :: OS Independent
@@ -53,8 +55,8 @@ keywords = ['imdb', 'movie', 'people', 'database', 'cinema', 'film', 'person',
             'keywords', 'top250', 'bottom100', 'xml']
 
 
-cutils = setuptools.Extension('imdb.parser.common.cutils',
-                                ['imdb/parser/common/cutils.c'])
+cutils = setuptools.Extension('imdb.parser.sql.cutils',
+                                ['imdb/parser/sql/cutils.c'])
 
 scripts = ['./bin/get_first_movie.py',
             './bin/get_movie.py', './bin/search_movie.py',
@@ -72,26 +74,14 @@ data_files = [('doc', [f for f in setuptools.findall('docs')
 
 
 # Defining these 'features', it's possible to run commands like:
-# python ./setup.py --without-sql --without-local bdist
-# having (in this example) imdb.parser.sql, imdb.parser.local (and
-# their shared code in imdb.parser.common) removed.
+# python ./setup.py --without-sql bdist
+# having (in this example) imdb.parser.sql removed.
 
 featCutils = setuptools.dist.Feature('compile the C module', standard=True,
         ext_modules=[cutils])
 
-featCommon = setuptools.dist.Feature('common code for "sql" and "local"',
-        standard=False, remove='imdb.parser.common')
-
-localScripts = ['./bin/characters4local.py', './bin/companies4local.py',
-                './bin/misc-companies4local.py', './bin/mpaa4local.py',
-                './bin/topbottom4local.py']
-featLocal = setuptools.dist.Feature('access to local mkdb data', standard=True,
-        require_features='common', remove='imdb.parser.local',
-        scripts=localScripts)
-
 featLxml = setuptools.dist.Feature('add lxml dependency', standard=True,
         install_requires=['lxml'])
-
 
 # XXX: it seems there's no way to specify that we need EITHER
 #      SQLObject OR SQLAlchemy.
@@ -100,18 +90,18 @@ featSQLObject = setuptools.dist.Feature('add SQLObject dependency',
         require_features='sql')
 
 featSQLAlchemy = setuptools.dist.Feature('add SQLAlchemy dependency',
-        standard=True, install_requires=['SQLAlchemy'],
+        standard=True, install_requires=['SQLAlchemy', 'sqlalchemy-migrate'],
         require_features='sql')
 
 sqlScripts = ['./bin/imdbpy2sql.py']
+# standard=False so that it's not installed if both --without-sqlobject
+# and --without-sqlalchemy are specified.
 featSQL = setuptools.dist.Feature('access to SQL databases', standard=False,
-        require_features='common', remove='imdb.parser.sql', scripts=sqlScripts)
+                                remove='imdb.parser.sql', scripts=sqlScripts)
 
 features = {
-    'common': featCommon,
     'cutils': featCutils,
     'sql': featSQL,
-    'local': featLocal,
     'lxml': featLxml,
     'sqlobject': featSQLObject,
     'sqlalchemy': featSQLAlchemy
@@ -134,7 +124,7 @@ params = {
         'platforms': 'any',
         'keywords': keywords,
         'classifiers': filter(None, classifiers.split("\n")),
-        'zip_safe': True, # XXX: I guess, at least...
+        'zip_safe': False, # XXX: I guess, at least...
         # Download URLs.
         'url': home_page,
         'download_url': dwnl_url,
@@ -172,22 +162,17 @@ ERR_MSG = """
   try re-running this script with the corresponding optional argument:
 
       --without-lxml        exclude lxml (speeds up 'http')
-      --without-cutils      don't compile the C module (speeds up 'local/sql')
+      --without-cutils      don't compile the C module (speeds up 'sql')
       --without-sqlobject   exclude SQLObject  (you need at least one of)
       --without-sqlalchemy  exclude SQLAlchemy (SQLObject or SQLAlchemy,)
                                                (if you want to access a )
                                                (local SQL database      )
-
-  The following arguments exclude altogether some features of IMDbPY,
-  in case you don't need them (if both are specified, the cutils C module
-  is not compiled, either):
-      --without-local       no access to local (mkdb generated) data.
       --without-sql         no access to SQL databases (implied if both
                             --without-sqlobject and --without-sqlalchemy
                             are used)
 
   Example:
-      python ./setup.py --without-lxml --without-local --without-sql install
+      python ./setup.py --without-lxml --without-sql install
 
   The caught exception, is re-raise below:
 """
@@ -201,6 +186,7 @@ def runRebuildmo():
     cwd = os.getcwd()
     import sys
     path = list(sys.path)
+    languages = []
     try:
         import imp
         scriptPath =  os.path.dirname(__file__)
@@ -215,10 +201,22 @@ def runRebuildmo():
         print 'ERROR: unable to rebuild .mo files; caught exception %s' % e
     sys.path = path
     os.chdir(cwd)
-
+    return languages
 
 try:
-    runRebuildmo()
+    languages = runRebuildmo()
+    if languages:
+        data_files.append(('imdb/locale', ['imdb/locale/imdbpy.pot']))
+    for lang in languages:
+        files_found = [f for f in setuptools.findall('imdb/locale/%s' % lang)
+                        if '.svn' not in f]
+        if not files_found:
+            continue
+        base_dir = os.path.dirname(files_found[0])
+        data_files.append(('imdb/locale', ['imdb/locale/imdbpy-%s.po' % lang]))
+        if not base_dir:
+            continue
+        data_files.append((base_dir, files_found))
     setuptools.setup(**params)
 except SystemExit:
     print ERR_MSG

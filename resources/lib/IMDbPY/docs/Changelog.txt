@@ -1,6 +1,111 @@
   Changelog for IMDbPY
   ====================
 
+* What's the new in release 4.5.1 "Dollhouse" (01 Mar 2010)
+  [general]
+  - reintroduced the ez_setup.py file.
+  - fixes for AKAs on 'release dates'.
+  - added the dtd.
+
+
+* What's the new in release 4.5 "Invictus" (28 Feb 2010)
+  [general]
+  - moved to setuptools 0.6c11.
+  - trying to make the SVN release versions work fine.
+  - http/mobile should work in GAE (Google App Engine).
+  - added some goodies scripts, useful for programmers (see the
+    docs/goodies directory).
+
+  [http/mobile]
+  - removed urllib-based User-Agent header.
+  - fixes for some minor changes to IMDb's html.
+  - fixes for garbage in movie quotes.
+  - improvements in the handling of AKAs.
+
+  [mobile]
+  - fixe for AKAs in search results.
+
+  [sql]
+  - fixes for bugs restoring imdbIDs.
+  - first steps to split CSV creation/insertion.
+
+
+* What's the new in release 4.4 "Gandhi" (06 Jan 2010)
+  [general]
+  - introduced a logging facility; see README.logging.
+  - the 'http' and 'mobile' should be a lot more robust.
+
+  [http]
+  - fixes for the n-th set of changes to IMDb's HTML.
+  - improvements to perfect-match searches.
+  - slightly simplified the parsers for search results.
+
+  [mobile]
+  - fixes for the n-th set of changes to IMDb's HTML.
+  - slightly simplified the parsers for search results.
+
+  [sql]
+  - movies' keywords are now correctly imported, using CSV files.
+  - minor fixes to handle crap in the plain text data files.
+  - removed an outdate parameter passed to SQLObject.
+  - made imdbpy2sql.py more robust in some corner-cases.
+  - fixes for the Windows environment.
+
+
+* What's the new in release 4.3 "Public Enemies" (18 Nov 2009)
+  [general]
+  - the installer now takes care of .mo files.
+  - introduced, in the helpers module, the functions keyToXML and
+    translateKey, useful to translate dictionary keys.
+  - support for smart guessing of the language of a movie title.
+  - updated the DTD.
+
+  [http]
+  - fixed a lot of bugs introduced by the new IMDb.com design.
+  - nicer handling of HTTP 404 response code.
+  - fixed parsers for top250 and bottom100 lists.
+  - fixed a bug parsing AKAs.
+  - fixed misc bugs.
+
+  [mobile]
+  - removed duplicates in list of genres.
+
+  [sql]
+  - fixed a bug in the imdbpy2sql.py script using CSV files;
+    the 'movie_info_idx' and 'movie_keyword' were left
+    empty/with wrong data.
+
+
+* What's the new in release 4.2 "Battlestar Galactica" (31 Aug 2009)
+  [general]
+  - the 'local' data access system is gone.  See README.local.
+  - the imdb.parser.common package was removed, and its code integrated
+    in imdb.parser.sql and in the imdbpy2sql.py script.
+  - fixes for the installer.
+  - the helpers module contains the fullSizeCoverURL function, to convert
+    a Movie, Person or Character instance (or a URL in a string)
+    in an URL to the full-size version of its cover/headshot.
+    Courtesy of Basil Shubin.
+  - used a newer version of msgfmt.py, to work around a hideous bug
+    generating locales.
+  - minor updates to locales.
+  - updated the DTD to version 4.2.
+
+  [http]
+  - removed garbage at the end of quotes.
+  - fixed problems parsing company names and notes.
+  - keys in character's quotes dictionary are now Movie instances.
+  - fixed a bug converting entities char references (affected BeautifulSoup).
+  - fixed a long-standing bug handling &amp; with BeautifulSoup.
+  - top250 is now correctly parsed by BeautifulSoup.
+
+  [sql]
+  - fixed DB2 call for loading blobs/cblobs.
+  - information from obsolete files are now used if and only if they
+    refer to still existing titles.
+  - the --fix-old-style-titles argument is now obsolete.
+
+
 * What's the new in release 4.1 "State Of Play" (02 May 2009)
   [general]
   - DTD definition.
@@ -234,7 +339,7 @@
   - fixed changes to some key names for movies.
   - introduced the search_character.py, get_character.py and
     get_first_character.py example scripts.
- 
+
   [http]
   - full support for character pages.
   - fixed a bug retrieving some 'cover url'.

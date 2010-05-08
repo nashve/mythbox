@@ -1,4 +1,4 @@
-<window>
+<window id="3010">
     <type>dialog</type>
     <defaultcontrol>201</defaultcontrol>
     <animation effect="fade" time="200">WindowOpen</animation>
@@ -16,7 +16,7 @@
             <posy>0</posy>
             <width>880</width>
             <height>530</height>
-            <texture border="40">DialogBack.png</texture>
+            <texture border="40">mb-DialogBack.png</texture>
             <aspectratio>stretch</aspectratio>
         </control>
         
@@ -30,14 +30,14 @@
             <aspectratio>stretch</aspectratio>
         </control>
         
-        <control type="label" id="20">
+        <control type="label">
             <description>Dialog Heading</description>
             <posx>40</posx>
             <posy>40</posy>
             <width>650</width>
             <align>center</align>
             <font>font20</font>
-            <label>Edit Recording Schedule</label>
+            <info>Window.Property(heading)</info>
         </control>
         
         <control type="image" id="2">
@@ -51,7 +51,7 @@
 
         <!-- SECTION 2 ROW 1-->
         
-        <control type="button" id="21">
+        <control type="button">
             <description>Channel Label</description>
             <posx>40</posx>
             <posy>80</posy>
@@ -60,9 +60,10 @@
             <font>font11</font>
             <texturefocus>-</texturefocus>
             <texturenofocus>-</texturenofocus>
+            <label>$INFO[Window.Property(channel)]</label>
         </control>
         
-        <control type="label" id="24">
+        <control type="label">
             <description>Title Label</description>
             <posx>150</posx>
             <posy>100</posy>
@@ -71,9 +72,10 @@
             <font>font20</font>
             <texturefocus>-</texturefocus>
             <texturenofocus>-</texturenofocus>
+            <label>$INFO[Window.Property(title)]</label>
         </control>
         
-        <control type="button" id="22">
+        <control type="button">
             <description>Station Label</description>
             <posx>40</posx>
             <posy>80</posy>
@@ -82,12 +84,13 @@
             <font>font11</font>
             <texturefocus>-</texturefocus>
             <texturenofocus>-</texturenofocus>
+            <label>$INFO[Window.Property(station)]</label>
         </control>
         
         <!-- SECTION 2 ROW 2 -->
         
-        <control type="button" id="25">
-            <description>Date Label</description>
+        <control type="button">
+            <description>Start Date Label</description>
             <posx>40</posx>
             <posy>110</posy>
             <width>650</width>
@@ -95,10 +98,11 @@
             <font>font10</font>
             <texturefocus>-</texturefocus>
             <texturenofocus>-</texturenofocus>
+            <label>$INFO[Window.Property(startDate)]</label>
         </control>
         
-        <control type="button" id="23">
-            <description>Time Label</description>
+        <control type="button">
+            <description>Start Time Label</description>
             <posx>40</posx>
             <posy>110</posy>
             <width>650</width>
@@ -106,6 +110,7 @@
             <font>font10</font>
             <texturefocus>-</texturefocus>
             <texturenofocus>-</texturenofocus>
+            <label>$INFO[Window.Property(startTime)]</label>
         </control>
         
         <control type="image" id="3">
@@ -150,7 +155,8 @@
             <onup>9000</onup>
             
             <control type="button" id="201">
-                <label>Record When</label>
+                <label>Record</label>
+                <label2>$INFO[Window.Property(scheduleType)]</label2>
                 <width>650</width>
                 <height>35</height>
                 <font>font12</font>
@@ -161,8 +167,8 @@
             </control>
             
             <control type="button" id="202">
-                <description>Recording Priority Button</description>
-                <label>SCRIPT202</label>
+                <label>Priority</label>
+                <label2>$INFO[Window.Property(priority)]</label2>
                 <width>650</width>
                 <height>35</height>
                 <align>left</align>
@@ -191,8 +197,8 @@
             -->
              
             <control type="button" id="203">
-                <description>Check for dupes using Button</description>
-                <label>SCRIPT203</label>
+                <label>Check for Duplicates Using</label>
+                <label2>$INFO[Window.Property(checkForDupesUsing)]</label2>
                 <width>650</width>
                 <height>35</height>
                 <align>left</align>
@@ -203,8 +209,8 @@
             </control>
             
             <control type="button" id="204">
-                <description>Check for Dupes in Button</description>
-                <label>SCRIPT204</label>
+                <label>Check for Duplicates In</label>
+                <label2>$INFO[Window.Property(checkForDupesIn)]</label2>
                 <width>650</width>
                 <height>35</height>
                 <align>left</align>
@@ -216,6 +222,7 @@
 
             <control type="button" id="208">
                 <label>Episode Filter</label>
+                <label2>$INFO[Window.Property(episodeFilter)]</label2>
                 <width>650</width>
                 <height>35</height>
                 <align>left</align>
@@ -265,8 +272,8 @@
             </control>
 
             <control type="button" id="206">
-                <description>Max episodes button</description>
-                <label>SCRIPT206</label>
+                <label>Keep At Most</label>
+                <label2>$INFO[Window.Property(maxEpisodes)]</label2>
                 <width>650</width>
                 <height>35</height>
                 <align>left</align>
@@ -292,6 +299,7 @@
 
             <control type="button" id="209">
                 <label>Start Recording</label>
+                <label2>$INFO[Window.Property(startEarly)]</label2>
                 <width>650</width>
                 <height>35</height>
                 <align>left</align>
@@ -303,6 +311,7 @@
 
             <control type="button" id="210">
                 <label>End Recording</label>
+                <label2>$INFO[Window.Property(endLate)]</label2>
                 <width>650</width>
                 <height>35</height>
                 <align>left</align>

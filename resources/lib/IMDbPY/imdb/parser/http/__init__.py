@@ -7,7 +7,7 @@ the imdb.IMDb function will return an instance of this class when
 called with the 'accessSystem' argument set to "http" or "web"
 or "html" (this is the default).
 
-Copyright 2004-2009 Davide Alberani <da@erlug.linux.it>
+Copyright 2004-2010 Davide Alberani <da@erlug.linux.it>
                2008 H. Turgut Uyar <uyar@tekir.org>
 
 This program is free software; you can redistribute it and/or modify
@@ -26,6 +26,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 """
 
 import sys
+import logging
 import warnings
 from urllib import FancyURLopener, quote_plus
 from codecs import lookup
@@ -47,6 +48,17 @@ import personParser
 import characterParser
 import companyParser
 import topBottomParser
+
+# Logger for miscellaneous functions.
+_aux_logger = logging.getLogger('imdbpy.parser.http.aux')
+
+IN_GAE = False
+try:
+    import google.appengine
+    IN_GAE = True
+    _aux_logger.info('IMDbPY is running in the Google App Engine environment')
+except ImportError:
+    pass
 
 
 class _ModuleProxy:
@@ -99,8 +111,22 @@ _cookie_id = 'rH1jNAkjTlNXvHolvBVBsgaPICNZbNdjVjzFwzas9JRmusdjVoqBs/Hs12NR+1WFxE
 _cookie_uu = 'su4/m8cho4c6HP+W1qgq6wchOmhnF0w+lIWvHjRUPJ6nRA9sccEafjGADJ6hQGrMd4GKqLcz2X4z5+w+M4OIKnRn7FpENH7dxDQu3bQEHyx0ZEyeRFTPHfQEX03XF+yeN1dsPpcXaqjUZAw+lGRfXRQEfz3RIX9IgVEffdBAHw2wQXyf9xdMPrQELw0QNB8dsffsqcdQemjPB0w+moLcPh0JrKrHJ9hjBzdMPpcXTH7XRwwOk='
 
 
+class _FakeURLOpener(object):
+    """Fake URLOpener object, used to return empty strings instead of
+    errors.
+    """
+    def __init__(self, url, headers):
+        self.url = url
+        self.headers = headers
+    def read(self, *args, **kwds): return ''
+    def close(self, *args, **kwds): pass
+    def info(self, *args, **kwds): return self.headers
+
+
 class IMDbURLopener(FancyURLopener):
     """Fetch web pages and handle errors."""
+    _logger = logging.getLogger('imdbpy.parser.http.urlopener')
+
     def __init__(self, *args, **kwargs):
         self._last_url = u''
         FancyURLopener.__init__(self, *args, **kwargs)
@@ -108,7 +134,9 @@ class IMDbURLopener(FancyURLopener):
         # XXX: IMDb's web server doesn't like urllib-based programs,
         #      so lets fake to be Mozilla.
         #      Wow!  I'm shocked by my total lack of ethic! <g>
-        self.set_header('User-agent', 'Mozilla/5.0')
+        for header in ('User-Agent', 'User-agent', 'user-agent'):
+            self.del_header(header)
+        self.set_header('User-Agent', 'Mozilla/5.0')
         # XXX: This class is used also to perform "Exact Primary
         #      [Title|Name]" searches, and so by default the cookie is set.
         c_header = 'id=%s; uu=%s' % (_cookie_id, _cookie_uu)
@@ -151,7 +179,7 @@ class IMDbURLopener(FancyURLopener):
                 self.set_header('Range', 'bytes=0-%d' % size)
             uopener = self.open(url)
             kwds = {}
-            if PY_VERSION > (2, 3):
+            if PY_VERSION > (2, 3) and not IN_GAE:
                 kwds['size'] = size
             content = uopener.read(**kwds)
             self._last_url = uopener.url
@@ -188,11 +216,16 @@ class IMDbURLopener(FancyURLopener):
         if encode is None:
             encode = 'latin_1'
             # The detection of the encoding is error prone...
-            warnings.warn('Unable to detect the encoding of the retrieved '
-                        'page [%s]; falling back to default latin1.' % encode)
+            self._logger.warn('Unable to detect the encoding of the retrieved '
+                        'page [%s]; falling back to default latin1.', encode)
+        ##print unicode(content, encode, 'replace').encode('utf8')
         return unicode(content, encode, 'replace')
 
     def http_error_default(self, url, fp, errcode, errmsg, headers):
+        if errcode == 404:
+            self._logger.warn('404 code returned for %s: %s (headers: %s)',
+                                url, errmsg, headers)
+            return _FakeURLOpener(url, headers)
         raise IMDbDataAccessError, {'url': 'http:%s' % url,
                                     'errcode': errcode,
                                     'errmsg': errmsg,
@@ -217,6 +250,7 @@ class IMDbHTTPAccessSystem(IMDbBase):
     """The class used to access IMDb's data through the web."""
 
     accessSystem = 'http'
+    _http_logger = logging.getLogger('imdbpy.parser.http')
 
     def __init__(self, isThin=0, adultSearch=1, proxy=-1, oldParsers=False,
                 fallBackToNew=False, useModule=None, cookie_id=-1,
@@ -281,7 +315,6 @@ class IMDbHTTPAccessSystem(IMDbBase):
         self.topBottomProxy = _ModuleProxy(topBottomParser, defaultKeys=_def,
                                     oldParsers=oldParsers, useModule=useModule,
                                     fallBackToNew=fallBackToNew)
-
 
     def _normalize_movieID(self, movieID):
         """Normalize the given movieID."""
@@ -376,6 +409,7 @@ class IMDbHTTPAccessSystem(IMDbBase):
     def _retrieve(self, url, size=-1):
         """Retrieve the given URL."""
         ##print url
+        self._http_logger.debug('fetching url %s (size: %d)', url, size)
         return self.urlOpener.retrieve_unicode(url, size=size)
 
     def _get_search_content(self, kind, ton, results):
@@ -464,7 +498,10 @@ class IMDbHTTPAccessSystem(IMDbBase):
 
     def get_movie_release_dates(self, movieID):
         cont = self._retrieve(imdbURL_movie_main % movieID + 'releaseinfo')
-        return self.mProxy.releasedates_parser.parse(cont)
+        ret = self.mProxy.releasedates_parser.parse(cont)
+        ret['info sets'] = ('release dates', 'akas')
+        return ret
+    get_movie_akas = get_movie_release_dates
 
     def get_movie_vote_details(self, movieID):
         cont = self._retrieve(imdbURL_movie_main % movieID + 'ratings')
@@ -704,6 +741,8 @@ class IMDbHTTPAccessSystem(IMDbBase):
         try:
             cont = self._get_search_content('kw', keyword, results)
         except IMDbDataAccessError:
+            self._http_logger.warn('unable to search for keyword %s', keyword,
+                                    exc_info=True)
             return []
         return self.skProxy.search_keyword_parser.parse(cont, results=results)['data']
 
@@ -712,6 +751,8 @@ class IMDbHTTPAccessSystem(IMDbBase):
         try:
             cont = self._retrieve(imdbURL_keyword_main % keyword)
         except IMDbDataAccessError:
+            self._http_logger.warn('unable to get keyword %s', keyword,
+                                    exc_info=True)
             return []
         return self.skProxy.search_moviekeyword_parser.parse(cont, results=results)['data']
 

@@ -27,7 +27,14 @@ class FFMPEG:
             outfileQuoted = '"' + outfile + '"'
             print 'outfile = %s' % outfileQuoted
             #'start /B /WAIT /MIN ' +
-            cmd = '"' + self.ffmpeg + '"' + ' -i ' + '"' + input_filename + '"' + ' 2>' + outfileQuoted
+            
+            if self.windows:
+                # Crappy windows needs extra set of quotes - see Issue 79
+                cmd = '"' + '"' + self.ffmpeg + '"' + ' -i ' + '"' + input_filename + '"' + ' 2>' + outfileQuoted + '"'
+            else:
+                cmd = '"' + self.ffmpeg + '"' + ' -i ' + '"' + input_filename + '"' + ' 2>' + outfileQuoted
+             
+            
             print 'cmd = %s' % cmd
             result = os.system(cmd)
             print 'os.system = %s' % result

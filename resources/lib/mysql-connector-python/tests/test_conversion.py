@@ -1,21 +1,28 @@
 # -*- coding: utf-8 -*-
-"""
-Connector/Python, native MySQL driver written in Python.
-Copyright 2009 Sun Microsystems, Inc. All rights reserved. Use is subject to license terms.
+# MySQL Connector/Python - MySQL driver written in Python.
+# Copyright 2009 Sun Microsystems, Inc. All rights reserved
+# Use is subject to license terms. (See COPYING)
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation.
+# 
+# There are special exceptions to the terms and conditions of the GNU
+# General Public License as it is applied to this software. View the
+# full text of the exception in file EXCEPTIONS-CLIENT in the directory
+# of this software distribution or see the FOSS License Exception at
+# www.mysql.com.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+"""Unittests for mysql.connector.conversion
 """
 
 from decimal import Decimal
@@ -70,12 +77,6 @@ class ConverterBaseTests(tests.MySQLConnectorTests):
         cnv = conversion.ConverterBase()
         
         self.assertEqual("'a value'", cnv.escape("'a value'"))
-    
-    def test__get_db(self):
-        cnv = conversion.ConverterBase()
-
-        self.assertRaises(errors.ProgrammingError,
-            cnv._get_db)
 
 class MySQLConverterTests(tests.MySQLConnectorTests):
     
@@ -160,6 +161,7 @@ class MySQLConverterTests(tests.MySQLConnectorTests):
             datetime.time(20, 03, 23),
             st_now,
             datetime.timedelta(hours=40,minutes=30,seconds=12),
+            Decimal('3.14'),
         )
         exp = (
             data[0],
@@ -173,6 +175,7 @@ class MySQLConverterTests(tests.MySQLConnectorTests):
             '20:03:23',
             time.strftime('%Y-%m-%d %H:%M:%S',st_now),
             '40:30:12',
+            '3.14',
         )
         
         res = tuple([ self.cnv.to_mysql(v) for v in data ])
@@ -243,6 +246,11 @@ class MySQLConverterTests(tests.MySQLConnectorTests):
         self.assertEqual('-40:30:12', self.cnv._timedelta_to_mysql(data2))
         self.assertEqual('39:59:12', self.cnv._timedelta_to_mysql(data3))
         self.assertEqual('-39:00:12', self.cnv._timedelta_to_mysql(data4))
+
+    def test__decimal_to_mysql(self):
+        """A decimal.Decimal becomes a string."""
+        data = Decimal('3.14')
+        self.assertEqual('3.14', self.cnv._decimal_to_mysql(data))
 
     def test_to_python(self):
         """Convert MySQL data to Python types using helper method"""

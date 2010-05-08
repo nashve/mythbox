@@ -1,20 +1,27 @@
-"""
-Connector/Python, native MySQL driver written in Python.
-Copyright 2009 Sun Microsystems, Inc. All rights reserved. Use is subject to license terms.
+# MySQL Connector/Python - MySQL driver written in Python.
+# Copyright 2009 Sun Microsystems, Inc. All rights reserved
+# Use is subject to license terms. (See COPYING)
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation.
+# 
+# There are special exceptions to the terms and conditions of the GNU
+# General Public License as it is applied to this software. View the
+# full text of the exception in file EXCEPTIONS-CLIENT in the directory
+# of this software distribution or see the FOSS License Exception at
+# www.mysql.com.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+"""Unittests for mysql.connector.utils
 """
 
 import sys, struct
@@ -27,71 +34,40 @@ class UtilsTests(tests.MySQLConnectorTests):
     
     These tests should not make a connection to the database.
     """
-
     def test_int1read(self):
         """Pass int1read a valid string of 1 byte long."""
         i = 65
-        byte = chr(0x41)  # A
-        self.failUnlessEqual( i, utils.int1read(byte))
-
-    def test_int1read_fail(self):
-        """Pass int1read an invalid string of 2 bytes long"""
-        i = 65
-        byte = chr(0x41) + chr(0x42) # A
-        try:
-            utils.int1read(byte)
-        except:
-            pass
-        else:
-            self.fail("int1read should have raise an exception")
+        b = '\x41'
+        self.assertEqual( i, utils.int1read(b))
+        self.assertRaises(ValueError,utils.int1read,b+'\x41')
 
     def test_int2read(self):
         """Pass int2read a valid string of 2 bytes long."""
         i = 65 + (66 << 8)
-        bytes = chr(0x41) + chr(0x42) # AB
-        self.failUnlessEqual( i, utils.int2read(bytes))
-    
-    def test_int2read_fail(self):
-        """Pass int2read an invalid string of 3 bytes long"""
-        byte = chr(0x41) * 3
-        try:
-            utils.int1read(byte)
-        except:
-            pass
-        else:
-            self.fail("int2read should have raise an exception")
+        b = '\x41\x42' # AB
+        self.assertEqual( i, utils.int2read(b))
+        self.assertRaises(ValueError,utils.int2read,b+'\x41')
 
     def test_int3read(self):
         """Pass int3read a valid string of 3 bytes long."""
         i = 65 + (66 << 8) + (67 << 16)
-        bytes = chr(0x41) + chr(0x42) + chr(0x43) # ABC
-        self.failUnlessEqual( i, utils.int3read(bytes))
-    
-    def test_int3read_fail(self):
-        """Pass int3read an invalid string of 4 bytes long"""
-        byte = chr(0x41) * 4
-        try:
-            utils.int1read(byte)
-        except:
-            pass
-        else:
-            self.fail("int3read should have raise an exception")
+        b = '\x41\x42\x43'
+        self.assertEqual( i, utils.int3read(b))
+        self.assertRaises(ValueError,utils.int3read,b+'\x41')
 
     def test_int4read(self):
         """Pass int4read a valid string of 4 bytes long."""
         i = 65 + (66 << 8) + (67 << 16) + (68 << 24)
-        bytes = chr(0x41) + chr(0x42) + chr(0x43)+ chr(0x44) # ABC
-        self.failUnlessEqual( i, utils.int4read(bytes))
-    
-    def test_int4read_fail(self):
-        """Pass int4read an invalid string of 5 bytes long"""
-        byte = chr(0x41) * 5
-        try:
-            utils.int1read(byte)
-        except:
-            pass
-        else:
-            self.fail("int4read should have raise an exception")
+        b = '\x41\x42\x43\x44'
+        self.assertEqual( i, utils.int4read(b))
+        self.assertRaises(ValueError,utils.int4read,b+'\x41')
+
+    def test_int8read(self):
+        """Pass int8read a valid string of 8 bytes long."""
+        i = 12321848580485677055
+        b = '\xff\xff\xff\xff\xff\xff\xff\xaa'
+        self.assertEqual( i, utils.int8read(b))
+        self.assertRaises(ValueError,utils.int8read,b+'\x41')
 
     def test_intread(self):
         """Use intread to read from valid strings."""
@@ -278,4 +254,49 @@ class UtilsTests(tests.MySQLConnectorTests):
         elif rest != exprest:
             self.fail("Wrong result. Expected '%s', got '%s'" %\
                 exp, result)
-        
+
+    def test_read_int(self):
+        """Read an integer from a buffer."""
+        buf = '34581adbkdasdf'
+
+        self.assertRaises(ValueError,utils.read_int,'foo',5)
+        self.assertRaises(ValueError,utils.read_int,'',1)
+
+        self.assertEqual(51, utils.read_int(buf,1)[1])
+        self.assertEqual(13363, utils.read_int(buf,2)[1])
+        self.assertEqual(3486771, utils.read_int(buf,3)[1])
+        self.assertEqual(943010867, utils.read_int(buf,4)[1])
+        self.assertEqual(7089898577412305971, utils.read_int(buf,8)[1])
+
+    def test_read_lc_int(self):
+        """Read a length encoded integer from a buffer."""
+        buf = '\xfb'
+
+        self.assertRaises(ValueError,utils.read_int,'foo',5)
+        self.assertRaises(ValueError,utils.read_int,'',1)
+
+        exp = 2**(8-1)
+        lcs = utils.intstore(exp)
+        self.assertEqual(exp,utils.read_lc_int(lcs)[1],
+            "Failed getting length coded int(250)")
+
+        exp = 2**(8-1)
+        lcs = utils.intstore(251) + utils.intstore(exp)
+        self.assertEqual(None,utils.read_lc_int(lcs)[1],
+            "Failed getting length coded int(250)")
+
+        exp = 2**(16-1)
+        lcs = utils.intstore(252) + utils.intstore(exp)
+        self.assertEqual(exp,utils.read_lc_int(lcs)[1],
+            "Failed getting length coded int(2^16-1)")
+
+        exp = 2**(24-1)
+        lcs = utils.intstore(253) + utils.intstore(exp)
+        self.assertEqual(exp,utils.read_lc_int(lcs)[1],
+            "Failed getting length coded int(2^24-1)")
+
+        exp = 12321848580485677055
+        lcs = '\xfe\xff\xff\xff\xff\xff\xff\xff\xaa\xdd\xdd'
+        exprest = '\xdd\xdd'
+        self.assertEqual((exprest,exp),utils.read_lc_int(lcs),
+            "Failed getting length coded long long")

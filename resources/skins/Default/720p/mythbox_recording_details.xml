@@ -71,7 +71,7 @@
             <itemgap>32</itemgap>
             <control type="label"><label>-</label></control>  <!-- spacing -->
             <control type="label"><label>-</label></control>  <!-- spacing -->
-            <control type="label"><label>Auto-Expire</label></control>
+            <control type="label"><label>Orig. Air Date</label></control>
             <control type="label"><label>Size</label></control>
             <control type="label"><label>Comm Breaks</label></control>
         </control>
@@ -128,9 +128,9 @@
             <control type="label"><label>-</label></control>
             <control type="label"><label>-</label></control>
             <control type="label" id="4006">
-                <description>Auto-Expire</description>
+                <description>Orig. Air Date</description>
                 <textcolor>0xffddddff</textcolor>
-                <info>Window.Property(autoExpire)</info>
+                <info>Window.Property(originalAirDate)</info>
             </control>
             <control type="label" id="4007">
                 <description>Size</description>
@@ -153,7 +153,7 @@
             <posy>287</posy>
             <width>630</width>
             <height>380</height>
-            <texture border="40">-</texture>
+            <texture background="false" border="40">-</texture>
             <info>Window.Property(thumbnailShadow)</info>
         </control>
                       
@@ -163,9 +163,10 @@
             <posy>320</posy>
             <width>568</width>
             <height>320</height>
-            <texture>-</texture>
+            <texture background="false">-</texture>
             <info>Window.Property(thumbnail)</info>
             <aspectratio>scale</aspectratio>
+            <fadetime>400</fadetime>
         </control>
         
         <control type="videowindow" id="4011">
@@ -187,7 +188,7 @@
       <posy>0</posy>
       <width>1280</width>
       <height>128</height>
-      <texture>header.png</texture>
+      <texture>mb-header.png</texture>
     </control>
 
     <control type="image">
@@ -197,7 +198,8 @@
         <height>90</height>
         <texture>mythbox.png</texture>
         <aspectratio align="left">keep</aspectratio>
-        <include>Window_OpenClose_Animation</include>
+        <animation effect="fade" time="200">WindowOpen</animation>
+        <animation effect="fade" time="200">WindowClose</animation>
     </control>
 
     <control type="label">
@@ -210,7 +212,8 @@
       <aligny>center</aligny>
       <textcolor>ffffffff</textcolor>
       <label>[B]Recording Details[/B]</label>
-      <include>Window_OpenClose_Animation</include>
+      <animation effect="fade" time="200">WindowOpen</animation>
+      <animation effect="fade" time="200">WindowClose</animation>
     </control>
 
     <control type="label">
@@ -224,7 +227,8 @@
       <font>font12</font>
       <textcolor>ffffffff</textcolor>
       <label>$INFO[System.Date] [COLOR=88FFFFFF] |  $INFO[System.Time][/COLOR]</label>
-      <include>Window_OpenClose_Animation</include>
+      <animation effect="fade" time="200">WindowOpen</animation>
+      <animation effect="fade" time="200">WindowClose</animation>
     </control>
         
     <!-- ============================================= -->
@@ -332,10 +336,10 @@
     
     <control type="multiimage">
         <description>Busy animation</description>
-        <posx>708</posx>
-        <posy>326</posy>
-        <width>128</width>
-        <height>128</height>
+        <posx>722</posx>
+        <posy>340</posy>
+        <width>100</width>
+        <height>100</height>
         <imagepath>busy</imagepath>
         <timeperimage>50</timeperimage>
         <fadetime>0</fadetime>

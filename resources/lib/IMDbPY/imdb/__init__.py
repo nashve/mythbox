@@ -4,9 +4,9 @@ imdb package.
 This package can be used to retrieve information about a movie or
 a person from the IMDb database.
 It can fetch data through different media (e.g.: the IMDb web pages,
-a local installation, a SQL database, etc.)
+a SQL database, etc.)
 
-Copyright 2004-2009 Davide Alberani <da@erlug.linux.it>
+Copyright 2004-2010 Davide Alberani <da@erlug.linux.it>
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -25,15 +25,16 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 __all__ = ['IMDb', 'IMDbError', 'Movie', 'Person', 'Character', 'Company',
             'available_access_systems']
-__version__ = VERSION = '4.1'
+__version__ = VERSION = '4.5.1'
 
 # Import compatibility module (importing it is enough).
 import _compat
 
-import sys, os, ConfigParser
+import sys, os, ConfigParser, logging
 from types import MethodType
 
 from imdb import Movie, Person, Character, Company
+import imdb._logging
 from imdb._exceptions import IMDbError, IMDbDataAccessError
 from imdb.utils import build_title, build_name, build_company_name
 
@@ -162,6 +163,18 @@ def IMDb(accessSystem=None, *arguments, **keywords):
             # wrong: ignore everything and pretend we were called with
             # the 'http' accessSystem.
             accessSystem = 'http'
+    if 'loggingLevel' in keywords:
+        imdb._logging.setLevel(keywords['loggingLevel'])
+        del keywords['loggingLevel']
+    if 'loggingConfig' in keywords:
+        logCfg = keywords['loggingConfig']
+        del keywords['loggingConfig']
+        try:
+            import logging.config
+            logging.config.fileConfig(os.path.expanduser(logCfg))
+        except Exception, e:
+            import warnings
+            warnings.warn('unable to read logger config: %s' % e)
     if accessSystem in ('http', 'web', 'html'):
         from parser.http import IMDbHTTPAccessSystem
         return IMDbHTTPAccessSystem(*arguments, **keywords)
@@ -172,11 +185,8 @@ def IMDb(accessSystem=None, *arguments, **keywords):
         from parser.mobile import IMDbMobileAccessSystem
         return IMDbMobileAccessSystem(*arguments, **keywords)
     elif accessSystem in ('local', 'files'):
-        try:
-            from parser.local import IMDbLocalAccessSystem
-        except ImportError:
-            raise IMDbError, 'the local access system is not installed'
-        return IMDbLocalAccessSystem(*arguments, **keywords)
+        # The local access system was removed since IMDbPY 4.2.
+        raise IMDbError, 'the local access system was removed since IMDbPY 4.2'
     elif accessSystem in ('sql', 'db', 'database'):
         try:
             from parser.sql import IMDbSqlAccessSystem
@@ -200,11 +210,6 @@ def available_access_systems():
     try:
         from parser.mobile import IMDbMobileAccessSystem
         asList.append('mobile')
-    except ImportError:
-        pass
-    try:
-        from parser.local import IMDbLocalAccessSystem
-        asList.append('local')
     except ImportError:
         pass
     try:
@@ -233,6 +238,9 @@ class IMDbBase:
     # The name of the preferred access system (MUST be overridden
     # in the subclasses).
     accessSystem = 'UNKNOWN'
+
+    # Top-level logger for IMDbPY.
+    _imdb_logger = logging.getLogger('imdbpy')
 
     def __init__(self, defaultModFunct=None, results=20, keywordsResults=100,
                 *arguments, **keywords):
@@ -693,13 +701,23 @@ class IMDbBase:
             info = (info,)
         res = {}
         for i in info:
-            if i in mop.current_info and not override: continue
+            if i in mop.current_info and not override:
+                continue
+            if not i:
+                continue
             try:
                 method = getattr(aSystem, 'get_%s_%s' %
                                     (prefix, i.replace(' ', '_')))
             except AttributeError:
                 raise IMDbDataAccessError, 'unknown information set "%s"' % i
-            ret = method(mopID)
+            try:
+                ret = method(mopID)
+            except Exception, e:
+                self._imdb_logger.critical('caught an exception retrieving ' \
+                                    'or parsing "%s" info set for mopID ' \
+                                    '"%s" (accessSystem: %s)',
+                                    i, mopID, mop.accessSystem, exc_info=True)
+                ret = {}
             keys = None
             if 'data' in ret:
                 res.update(ret['data'])
@@ -708,8 +726,6 @@ class IMDbBase:
             if 'info sets' in ret:
                 for ri in ret['info sets']:
                     mop.add_to_current_info(ri, keys, mainInfoset=i)
-                # So that only the 'main' required info set is set.
-                #mop.update_infoset_map(i, keys)
             else:
                 mop.add_to_current_info(i, keys)
             if 'titlesRefs' in ret:
@@ -750,7 +766,7 @@ class IMDbBase:
 
     def _searchIMDb(self, kind, ton):
         """Search the IMDb akas server for the given title or name."""
-        # The Exact Primary search system is gone AWL, so we resort
+        # The Exact Primary search system has gone AWOL, so we resort
         # to the mobile search. :-/
         if not ton:
             return None

@@ -2,10 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import sys, os
-sys.path.append('../')
 
 import mysql.connector
-from config import Config
 
 """
 
@@ -16,11 +14,8 @@ Example using MySQL Connector/Python showing:
 
 """
 
-if __name__ == '__main__':
-    #
-    # Configure MySQL login and database to use in config.py
-    #
-    db = mysql.connector.Connect(**Config.dbinfo())
+def main(config):
+    db = mysql.connector.Connect(**config)
     cursor = db.cursor()
     
     # Drop table if exists, and create it new
@@ -36,8 +31,9 @@ if __name__ == '__main__':
     ) ENGINE=InnoDB"""
     cursor.execute(stmt_create)
     
-    if cursor.warnings:
-        ids = [ i for l,i,m in cursor.warnings]
+    warnings = cursor.fetchwarnings()
+    if warnings:
+        ids = [ i for l,i,m in warnings]
         print "Oh oh.. we got warnings.."
         if 1266L in ids:
             print """
@@ -46,7 +42,7 @@ if __name__ == '__main__':
             Bailing out, no use to continue. Make sure InnoDB is available!
             """
             db.close()
-            sys.exit(1)
+            return
 
     # Insert 3 records
     print "Inserting data"
@@ -61,14 +57,19 @@ if __name__ == '__main__':
     # There should be no data!
     stmt_select = "SELECT id, name FROM names ORDER BY id"
     cursor.execute(stmt_select)
-    rows = cursor.fetchall()
-    
-    if len(rows):
-        print "Something is wrong, we have data although we rolled back!"
-        print rows
+    rows = None
+    try:
+        rows = cursor.fetchall()
+    except (mysql.connector.errors.InterfaceError), e:
+        raise
+        
+    if rows == []:
+        print("No data, all is fine.")
     else:
-        print "No data, all is fine."
-    
+        print("Something is wrong, we have data although we rolled back!")
+        print(rows)
+        raise
+        
     # Do the insert again.
     cursor.executemany(stmt_insert, names)
 
@@ -87,6 +88,14 @@ if __name__ == '__main__':
         print "%d | %s" % (row[0], row[1])
     	
     # Cleaning up, dropping the table again
-    cursor.execute(stmt_drop)
+    #cursor.execute(stmt_drop)
 
     db.close()
+
+if __name__ == '__main__':
+    #
+    # Configure MySQL login and database to use in config.py
+    #
+    from config import Config
+    config = Config.dbinfo().copy()
+    main(config)

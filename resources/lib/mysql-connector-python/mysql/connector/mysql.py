@@ -1,21 +1,27 @@
-# -*- coding: utf-8 -*-
-"""
-Connector/Python, native MySQL driver written in Python.
-Copyright 2009 Sun Microsystems, Inc. All rights reserved. Use is subject to license terms.
+# MySQL Connector/Python - MySQL driver written in Python.
+# Copyright 2009 Sun Microsystems, Inc. All rights reserved
+# Use is subject to license terms. (See COPYING)
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation.
+# 
+# There are special exceptions to the terms and conditions of the GNU
+# General Public License as it is applied to this software. View the
+# full text of the exception in file EXCEPTIONS-CLIENT in the directory
+# of this software distribution or see the FOSS License Exception at
+# www.mysql.com.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+"""Main classes for interacting with MySQL
 """
 
 import socket, string, os
@@ -37,7 +43,7 @@ class MySQLBase(object):
         self.conn = None # Holding the connection
         self.converter = None
         
-        self.client_flags = 0
+        self.client_flags = constants.ClientFlag.get_default()
         (self.charset,
          self.charset_name,
          self.collation_name) = constants.CharacterSet.get_charset_info('utf8')
@@ -58,6 +64,7 @@ class MySQLBase(object):
         self.get_warnings = False
         self.autocommit = False
         self.connection_timeout = None
+        self.buffered = False
 
     def connect(self):
         """To be implemented while subclassing MySQLBase."""
@@ -81,16 +88,15 @@ class MySQLBase(object):
             self.conn.open_connection()
             version = self.conn.protocol.server_version
             if version < (4,1):
-                raise InterfaceError("MySQL Version %s is not (yet) supported." % version)
+                raise InterfaceError("MySQL Version %s is not supported." % version)
             else:
-                self.conn.set_protocol(protocol.MySQLProtocol41)
+                self.conn.set_protocol(protocol.MySQLProtocol)
+            self.protocol = self.conn.protocol
+            self.protocol.do_auth(username=self.username, password=self.password,
+                database=self.database)
         except:
             raise
         
-        self.protocol = self.conn.protocol
-        self.conn.protocol.do_auth(username=self.username, password=self.password,
-            database=self.database)
-    
     def _post_connection(self):
         """Should be called after a connection was established"""
         self.get_characterset_info()
@@ -117,12 +123,13 @@ class MySQLBase(object):
             return
             
         if self.conn.sock is not None:
-            self.conn.protocol.cmd_quit()
+            self.protocol.cmd_quit()
             try:
-                self.conn.sock.close()
+                self.conn.close_connection()
             except:
                 pass
-        self.conn.sock = None
+        self.protocol = None
+        self.conn = None
     
     def set_converter_class(self, convclass):
         """
@@ -140,20 +147,23 @@ class MySQLBase(object):
         return (self.charset_name, self.collation_name)
     
     def get_server_version(self):
-        """Returns the server version"""
-        version = ''
+        """Returns the server version as a tuple"""
         try:
-            version = self.conn.protocol.server_version_original
+            return self.protocol.server_version
         except:
             pass
         
-        return version
+        return None
+    
+    def get_server_info(self):
+        """Returns the server version as a string"""
+        return self.protocol.server_version_original
     
     def get_server_threadid(self):
         """Returns the MySQL threadid of the connection."""
         threadid = None
         try:
-            threadid = self.conn.protocol.server_threadid
+            threadid = self.protocol.server_threadid
         except:
             pass
         
@@ -209,7 +219,7 @@ class MySQLBase(object):
             raise
         
         try:
-            self.conn.protocol.cmd_query("SET NAMES '%s'" % name)
+            self.protocol.cmd_query("SET NAMES '%s'" % name)
         except:
             raise
         else:
@@ -246,13 +256,18 @@ class MySQLBase(object):
     
     def set_connection_timeout(self, timeout):
         self.connection_timeout = timeout
+    
+    def set_client_flags(self, flags):
+        self.client_flags = flags
+    
+    def set_buffered(self, val=False):
+        """Sets whether cursor .execute() fetches rows"""
+        self.buffered = val
 
 class MySQL(MySQLBase):
     """
     Class implementing Python DB API v2.0.
     """
-    
-    cursors = []
 
     def __init__(self, *args, **kwargs):
         """
@@ -260,6 +275,7 @@ class MySQL(MySQLBase):
         when an instance is created.
         """
         MySQLBase.__init__(self)
+        self.cursors = []
         self.affected_rows = 0
         self.server_status = 0
         self.warning_count = 0
@@ -272,7 +288,7 @@ class MySQL(MySQLBase):
     def connect(self, dsn='', user='', password='', host='127.0.0.1',
             port=3306, db=None, database=None, use_unicode=True, charset='utf8', get_warnings=False,
             autocommit=False, unix_socket=None,
-            connection_timeout=None):
+            connection_timeout=None, client_flags=None, buffered=False):
         """
         Establishes a connection to the MySQL Server. Called also when instansiating
         a new MySQLConnection object through the __init__ method.
@@ -331,6 +347,14 @@ class MySQL(MySQLBase):
         
         connection_timeout
             Timeout for the TCP and UNIX socket connection.
+        
+        client_flags
+            Allows to set flags for the connection. Check following for possible flags:
+             >>> from mysql.connector.constants import ClientFlag
+             >>> print '\n'.join(ClientFlag.get_full_info())
+        
+        buffered
+            When set to True .execute() will fetch the rows immediatly.
             
         """
         # db is not part of Db API v2.0, but MySQLdb supports it.
@@ -343,6 +367,8 @@ class MySQL(MySQLBase):
         self.set_getwarnings(get_warnings)
         self.set_unixsocket(unix_socket)
         self.set_connection_timeout(connection_timeout)
+        self.set_client_flags(client_flags)
+        self.set_buffered(buffered)
 
         if user or password:
             self.set_login(user, password)
@@ -352,17 +378,29 @@ class MySQL(MySQLBase):
         self._post_connection()
     
     def close(self):
+        del self.cursors[:]
         self.disconnect()
     
     def remove_cursor(self, c):
         try:
             self.cursors.remove(c)
+        except ValueError:
+            raise errors.ProgrammingError(
+                "Cursor could not be removed.")
+    
+    def register_cursor(self, c):
+        try:
+            self.cursors.append(c)
         except:
             raise
     
     def cursor(self):
-        c = (cursor.MySQLCursor)(self)
-        self.cursors.append(c)
+        if self.buffered:
+            c = (cursor.MySQLCursorBuffered)(self)
+        else:
+            c = (cursor.MySQLCursor)(self)
+        
+        self.register_cursor(c)
         return c
 
     def commit(self):

@@ -5,7 +5,7 @@ imdbpy2sql.py script.
 This script puts the data of the plain text data files into a
 SQL database.
 
-Copyright 2005-2009 Davide Alberani <da@erlug.linux.it>
+Copyright 2005-2010 Davide Alberani <da@erlug.linux.it>
                2006 Giuseppe "Cowo" Corbelli <cowo --> lugbs.linux.it>
 
 This program is free software; you can redistribute it and/or modify
@@ -23,27 +23,19 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 """
 
-from __future__ import generators
 import os, sys, getopt, time, re, warnings
+try: import cPickle as pickle
+except ImportError: import pickle
 from gzip import GzipFile
 from types import UnicodeType
 from imdb.parser.sql.dbschema import *
 
-from imdb.parser.common.locsql import soundex
-from imdb.parser.sql import get_movie_data
-from imdb.utils import analyze_title, analyze_name, \
+from imdb.parser.sql import get_movie_data, soundex
+from imdb.utils import analyze_title, analyze_name, date_and_notes, \
         build_name, build_title, normalizeName, normalizeTitle, _articles, \
         build_company_name, analyze_company_name, canonicalTitle
-from imdb.parser.local.movieParser import _bus, _ldk, _lit, _links_sect
-from imdb.parser.local.personParser import _parseBiography
 from imdb._exceptions import IMDbParserError, IMDbError
 
-#_articles = list(_articles)
-#for i, art in enumerate(_articles):
-#    if not isinstance(art, unicode): continue
-#    _articles[i] = art.encode('utf_8')
-
-re_nameImdbIndex = re.compile(r'\(([IVXLCDM]+)\)')
 
 HELP = """imdbpy2sql.py usage:
     %s -d /directory/with/PlainTextDataFiles/ -u URI [-c /directory/for/CSV_files] [-o sqlobject,sqlalchemy] [--CSV-OPTIONS] [--COMPATIBILITY-OPTIONS]
@@ -59,6 +51,8 @@ HELP = """imdbpy2sql.py usage:
 
         # NOTE: --CSV-OPTIONS can be:
             --csv-ext STRING        files extension (.csv)
+            --csv-only-write        exit after the CSV files are written.
+            --csv-only-load         load an existing set of CSV files.
 
         # NOTE: --COMPATIBILITY-OPTIONS can be one of:
             --mysql-innodb          insert data into a MySQL MyISAM db,
@@ -67,8 +61,6 @@ HELP = """imdbpy2sql.py usage:
             --ms-sqlserver          compatibility mode for Microsoft SQL Server
                                     and SQL Express.
             --sqlite-transactions   uses transactions, to speed-up SQLite.
-
-            --fix-old-style-titles  temporary fix for files in old titles style.
 
 
                 See README.sqldb for more information.
@@ -87,6 +79,8 @@ MAX_RECURSION = 10
 # If set, this directory is used to output CSV files.
 CSV_DIR = None
 CSV_CURS = None
+CSV_ONLY_WRITE = False
+CSV_ONLY_LOAD = False
 CSV_EXT = '.csv'
 CSV_EOL = '\n'
 CSV_DELIMITER = ','
@@ -97,10 +91,10 @@ CSV_QUOTEINT = False
 CSV_LOAD_SQL = None
 CSV_MYSQL = "LOAD DATA LOCAL INFILE '%(file)s' INTO TABLE `%(table)s` FIELDS TERMINATED BY '%(delimiter)s' ENCLOSED BY '%(quote)s' ESCAPED BY '%(escape)s' LINES TERMINATED BY '%(eol)s'"
 CSV_PGSQL = "COPY %(table)s FROM '%(file)s' WITH DELIMITER AS '%(delimiter)s' NULL AS '%(null)s' QUOTE AS '%(quote)s' ESCAPE AS '%(escape)s' CSV"
-CSV_DB2 = "CALL SYSPROC.ADMIN_CMD('LOAD FROM %(file)s OF del INSERT INTO %(table)s')"
+CSV_DB2 = "CALL SYSPROC.ADMIN_CMD('LOAD FROM %(file)s OF del MODIFIED BY lobsinfile INSERT INTO %(table)s')"
 
 # Temporary fix for old style titles.
-FIX_OLD_STYLE_TITLES = False
+#FIX_OLD_STYLE_TITLES = True
 
 # Store custom queries specified on the command line.
 CUSTOM_QUERIES = {}
@@ -148,6 +142,8 @@ try:
                                                 'sqlite-transactions',
                                                 'fix-old-style-titles',
                                                 'mysql-force-myisam', 'orm',
+                                                'csv-only-write',
+                                                'csv-only-load',
                                                 'csv=', 'csv-ext=', 'help'])
 except getopt.error, e:
     print 'Troubles with arguments.'
@@ -186,7 +182,11 @@ for opt in optlist:
     elif opt[0] in ('-o', '--orm'):
         USE_ORM = opt[1].split(',')
     elif opt[0] == '--fix-old-style-titles':
-        FIX_OLD_STYLE_TITLES = True
+        warnings.warn('The --fix-old-style-titles argument is obsolete.')
+    elif opt[0] == '--csv-only-write':
+        CSV_ONLY_WRITE = True
+    elif opt[0] == '--csv-only-load':
+        CSV_ONLY_LOAD = True
     elif opt[0] in ('-h', '--help'):
         print HELP
         sys.exit(0)
@@ -200,6 +200,12 @@ if URI is None:
     print 'You must supply the URI for the database connection'
     print HELP
     sys.exit(2)
+
+if (CSV_ONLY_WRITE or CSV_ONLY_LOAD) and not CSV_DIR:
+    print 'You must specify the CSV directory with the -c argument'
+    print HELP
+    sys.exit(3)
+
 
 # Some warnings and notices.
 URIlower = URI.lower()
@@ -250,7 +256,7 @@ if ('--mysql-force-myisam' in sys.argv[1:] and
 if CSV_DIR:
     if URIlower.startswith('mysql'):
         CSV_LOAD_SQL = CSV_MYSQL
-    elif URIlower.startswith('postrges'):
+    elif URIlower.startswith('postgres'):
         CSV_LOAD_SQL = CSV_PGSQL
     elif URIlower.startswith('ibm'):
         CSV_LOAD_SQL = CSV_DB2
@@ -392,17 +398,17 @@ class CSVCursor(object):
             if lobFN:
                 lobFN = os.path.basename(lobFN)
         else:
-            tFD = open(os.path.join(CSV_DIR, tName + self.csvExt), 'w')
+            tFD = open(os.path.join(CSV_DIR, tName + self.csvExt), 'wb')
             self._fdPool[tName] = tFD
             if doLOB:
                 lobFN = '%s.lob' % tName
-                lobFD = open(os.path.join(CSV_DIR, lobFN), 'w')
+                lobFD = open(os.path.join(CSV_DIR, lobFN), 'wb')
                 self._lobFDPool[tName] = lobFD
         buildLine = self.buildLine
         tableToAddID = False
         if tName in ('cast_info', 'movie_info', 'person_info',
                     'movie_companies', 'movie_link', 'aka_name',
-                    'complete_cast'):
+                    'complete_cast', 'movie_info_idx', 'movie_keyword'):
             tableToAddID = tName
             if tName not in self._counters:
                 self._counters[tName] = 1
@@ -428,6 +434,20 @@ class CSVCursor(object):
     def fileNames(self):
         """Return the list of file names."""
         return [fd.name for fd in self._fdPool.values()]
+
+    def buildFakeFileNames(self):
+        """Populate the self._fdPool dictionary with fake objects
+        taking file names from the content of the self.csvDir directory."""
+        class _FakeFD(object): pass
+        for fname in os.listdir(self.csvDir):
+            if not fname.endswith(CSV_EXT):
+                continue
+            fpath = os.path.join(self.csvDir, fname)
+            if not os.path.isfile(fpath):
+                continue
+            fd = _FakeFD()
+            fd.name = fname
+            self._fdPool[fname[:-len(CSV_EXT)]] = fd
 
     def close(self, tName):
         """Close a given table/file."""
@@ -659,11 +679,6 @@ def name_soundexes(name, character=False):
         s3 = soundex(name.split(' ')[-1])
     if s3 and s3 in (s1, s2): s3 = None
     return (s1, s2, s3)
-
-
-# Handle laserdisc keys.
-for key, value in _ldk.items():
-    _ldk[key] = 'LD %s' % value
 
 
 # Tags to identify where the meaningful data begin/end in files.
@@ -1024,7 +1039,7 @@ class MoviesCache(_BaseCache):
                 episodeOf = self.addUnique(stitle)
                 del t['episode of']
                 year = self.movieYear.get(v)
-                if year is not None:
+                if year is not None and year != '????':
                     try: t['year'] = int(year)
                     except ValueError: pass
             elif kind in ('tv series', 'tv mini series'):
@@ -1045,10 +1060,10 @@ class MoviesCache(_BaseCache):
     def addUnique(self, key, miscData=None):
         """Insert a new key and return its value; if the key is already
         in the dictionary, its previous  value is returned."""
-        # TODO: to be removed in IMDbPY 4.2!
-        if FIX_OLD_STYLE_TITLES:
-            key = build_title(analyze_title(key, canonical=False,
-                            _emptyString=''), ptdf=1, _emptyString='')
+        # DONE: to be removed when it will be no more needed!
+        #if FIX_OLD_STYLE_TITLES:
+        #    key = build_title(analyze_title(key, canonical=False,
+        #                    _emptyString=''), ptdf=1, _emptyString='')
         if key in self: return self[key]
         else: return self.add(key, miscData)
 
@@ -1339,6 +1354,12 @@ class SQLData(dict):
                                     converter=self.converter)
             newdata._recursionLevel = self._recursionLevel
             newflushEvery = self.flushEvery / 2
+            if newflushEvery < 1:
+                print 'WARNING recursion level exceded trying to flush data'
+                print 'WARNING this batch of data is lost.'
+                self.clear()
+                self.counter = self.counterInit
+                return
             self.flushEvery = newflushEvery
             newdata.flushEvery = newflushEvery
             popitem = self.popitem
@@ -1536,24 +1557,24 @@ def castLists(_charIDsList=None):
             f = SourceFile(fname, start=CAST_START, stop=CAST_STOP)
         except IOError:
             if rolename == 'actress':
-                try:
-                    restoreImdbID(_charIDsList, CharName)
-                    del _charIDsList
-                except Exception, e:
-                    print 'WARNING: failed to restore imdbIDs for characters:',e
                 CACHE_CID.flush()
-                CACHE_CID.clear()
+                if not CSV_DIR:
+                    runSafely(restoreImdbID,
+                                'failed to restore imdbIDs for characters',
+                                None, _charIDsList, CharName)
+                    del _charIDsList
+                    CACHE_CID.clear()
             continue
         doCast(f, roleid, rolename)
         f.close()
         if rolename == 'actress':
-            try:
-                restoreImdbID(_charIDsList, CharName)
-                del _charIDsList
-            except Exception, e:
-                print 'WARNING: failed to restore imdbIDs for characters:', e
             CACHE_CID.flush()
-            CACHE_CID.clear()
+            if not CSV_DIR:
+                runSafely(restoreImdbID,
+                        'failed to restore imdbIDs for characters',
+                        None, _charIDsList, CharName)
+                del _charIDsList
+                CACHE_CID.clear()
         t('castLists(%s)' % rolename)
 
 
@@ -1663,19 +1684,27 @@ def doAkaTitles():
             continue
         isEpisode = False
         seriesID = None
+        doNotAdd = False
         for line in fp:
             if line and line[0] != ' ':
+                # Reading the official title.
+                doNotAdd = False
                 if line[0] == '\n': continue
                 line = line.strip()
-                if incontrib or obsolete:
+                if obsolete:
                     tonD = analyze_title(line, _emptyString='')
                     tonD['title'] = normalizeTitle(tonD['title'])
                     line = build_title(tonD, ptdf=1, _emptyString='')
+                    # Aka information for titles in obsolete files are
+                    # added only if the movie already exists in the cache.
+                    if line not in CACHE_MID:
+                        doNotAdd = True
+                        continue
                 mid = CACHE_MID.addUnique(line)
                 if line[0] == '"':
                     titleDict = analyze_title(line, _emptyString='')
                     if 'episode of' in titleDict:
-                        if incontrib or obsolete:
+                        if obsolete:
                             titleDict['episode of']['title'] = \
                                 normalizeTitle(titleDict['episode of']['title'])
                         series = build_title(titleDict['episode of'],
@@ -1689,6 +1718,9 @@ def doAkaTitles():
                     seriesID = None
                     isEpisode = False
             else:
+                # Reading an aka title.
+                if obsolete and doNotAdd:
+                    continue
                 res = unpack(line.strip(), ('title', 'note'))
                 note = res.get('note')
                 if incontrib:
@@ -1702,7 +1734,7 @@ def doAkaTitles():
                 akat = akat.strip()
                 if not akat:
                     continue
-                if incontrib or obsolete:
+                if obsolete:
                     akatD = analyze_title(akat, _emptyString='')
                     akatD['title'] = normalizeTitle(akatD['title'])
                     akat = build_title(akatD, ptdf=1, _emptyString='')
@@ -1714,7 +1746,7 @@ def doAkaTitles():
                     # aliases.
                     akaDict = analyze_title(akat, _emptyString='')
                     if 'episode of' in akaDict:
-                        if incontrib or obsolete:
+                        if obsolete:
                             akaDict['episode of']['title'] = normalizeTitle(
                                             akaDict['episode of']['title'])
                         akaSeries = build_title(akaDict['episode of'], ptdf=1)
@@ -1848,6 +1880,17 @@ def getQuotes(lines):
     return quotes
 
 
+_bus = {'BT': 'budget',
+        'WG': 'weekend gross',
+        'GR': 'gross',
+        'OW': 'opening weekend',
+        'RT': 'rentals',
+        'AD': 'admissions',
+        'SD': 'filming dates',
+        'PD': 'production dates',
+        'ST': 'studios',
+        'CP': 'copyright holder'
+}
 _usd = '$'
 _gbp = unichr(0x00a3).encode('utf_8')
 _eur = unichr(0x20ac).encode('utf_8')
@@ -1863,6 +1906,60 @@ def getBusiness(lines):
     return bd
 
 
+_ldk = {'OT': 'original title',
+        'PC': 'production country',
+        'YR': 'year',
+        'CF': 'certification',
+        'CA': 'category',
+        'GR': 'group genre',
+        'LA': 'language',
+        'SU': 'subtitles',
+        'LE': 'length',
+        'RD': 'release date',
+        'ST': 'status of availablility',
+        'PR': 'official retail price',
+        'RC': 'release country',
+        'VS': 'video standard',
+        'CO': 'color information',
+        'SE': 'sound encoding',
+        'DS': 'digital sound',
+        'AL': 'analog left',
+        'AR': 'analog right',
+        'MF': 'master format',
+        'PP': 'pressing plant',
+        'SZ': 'disc size',
+        'SI': 'number of sides',
+        'DF': 'disc format',
+        'PF': 'picture format',
+        'AS': 'aspect ratio',
+        'CC': 'close captions-teletext-ld-g',
+        'CS': 'number of chapter stops',
+        'QP': 'quality program',
+        'IN': 'additional information',
+        'SL': 'supplement',
+        'RV': 'review',
+        'V1': 'quality of source',
+        'V2': 'contrast',
+        'V3': 'color rendition',
+        'V4': 'sharpness',
+        'V5': 'video noise',
+        'V6': 'video artifacts',
+        'VQ': 'video quality',
+        'A1': 'frequency response',
+        'A2': 'dynamic range',
+        'A3': 'spaciality',
+        'A4': 'audio noise',
+        'A5': 'dialogue intellegibility',
+        'AQ': 'audio quality',
+        'LN': 'number',
+        'LB': 'label',
+        'CN': 'catalog number',
+        'LT': 'laserdisc title'
+}
+# Handle laserdisc keys.
+for key, value in _ldk.items():
+    _ldk[key] = 'LD %s' % value
+
 def getLaserDisc(lines):
     """Laserdisc information."""
     d = _parseColonList(lines, _ldk)
@@ -1871,6 +1968,16 @@ def getLaserDisc(lines):
     return d
 
 
+_lit = {'SCRP': 'screenplay-teleplay',
+        'NOVL': 'novel',
+        'ADPT': 'adaption',
+        'BOOK': 'book',
+        'PROT': 'production process protocol',
+        'IVIW': 'interviews',
+        'CRIT': 'printed media reviews',
+        'ESSY': 'essays',
+        'OTHR': 'other literature'
+}
 def getLiterature(lines):
     """Movie's literature information."""
     return _parseColonList(lines, _lit)
@@ -1884,6 +1991,8 @@ def getMPAA(lines):
         d[k] = ' '.join(v)
     return d
 
+
+re_nameImdbIndex = re.compile(r'\(([IVXLCDM]+)\)')
 
 def nmmvFiles(fp, funct, fname):
     """Files with sections separated by 'MV: ' or 'NM: '."""
@@ -1924,6 +2033,10 @@ def nmmvFiles(fp, funct, fname):
                 tonD = analyze_title(ton, _emptyString='')
                 tonD['title'] = normalizeTitle(tonD['title'])
                 ton = build_title(tonD, ptdf=1, _emptyString='')
+                # Skips movies that are not already in the cache, since
+                # laserdisc.list.gz is an obsolete file.
+                if ton not in CACHE_MID:
+                    continue
             mopid = CACHE_MID.addUnique(ton)
         else: mopid = CACHE_PID.addUnique(ton)
         if count % 6000 == 0:
@@ -1995,15 +2108,144 @@ def nmmvFiles(fp, funct, fname):
     sqldata.flush()
 
 
+# ============
+# Code from the old 'local' data access system.
+
+def _parseList(l, prefix, mline=1):
+    """Given a list of lines l, strips prefix and join consecutive lines
+    with the same prefix; if mline is True, there can be multiple info with
+    the same prefix, and the first line starts with 'prefix: * '."""
+    resl = []
+    reslapp = resl.append
+    ltmp = []
+    ltmpapp = ltmp.append
+    fistl = '%s: * ' % prefix
+    otherl = '%s:   ' % prefix
+    if not mline:
+        fistl = fistl[:-2]
+        otherl = otherl[:-2]
+    firstlen = len(fistl)
+    otherlen = len(otherl)
+    parsing = 0
+    joiner = ' '.join
+    for line in l:
+        if line[:firstlen] == fistl:
+            parsing = 1
+            if ltmp:
+                reslapp(joiner(ltmp))
+                ltmp[:] = []
+            data = line[firstlen:].strip()
+            if data: ltmpapp(data)
+        elif mline and line[:otherlen] == otherl:
+            data = line[otherlen:].strip()
+            if data: ltmpapp(data)
+        else:
+            if ltmp:
+                reslapp(joiner(ltmp))
+                ltmp[:] = []
+            if parsing:
+                if ltmp: reslapp(joiner(ltmp))
+                break
+    return resl
+
+
+def _parseBioBy(l):
+    """Return a list of biographies."""
+    bios = []
+    biosappend = bios.append
+    tmpbio = []
+    tmpbioappend = tmpbio.append
+    joiner = ' '.join
+    for line in l:
+        if line[:4] == 'BG: ':
+            tmpbioappend(line[4:].strip())
+        elif line[:4] == 'BY: ':
+            if tmpbio:
+                biosappend(joiner(tmpbio) + '::' + line[4:].strip())
+                tmpbio[:] = []
+    # Cut mini biographies up to 2**16-1 chars, to prevent errors with
+    # some MySQL versions - when used by the imdbpy2sql.py script.
+    bios[:] = [bio[:65535] for bio in bios]
+    return bios
+
+
+def _parseBiography(biol):
+    """Parse the biographies.data file."""
+    res = {}
+    bio = ' '.join(_parseList(biol, 'BG', mline=0))
+    bio = _parseBioBy(biol)
+    if bio: res['mini biography'] = bio
+
+    for x in biol:
+        x4 = x[:4]
+        x6 = x[:6]
+        if x4 == 'DB: ':
+            date, notes = date_and_notes(x[4:])
+            if date:
+                res['birth date'] = date
+            if notes:
+                res['birth notes'] = notes
+        elif x4 == 'DD: ':
+            date, notes = date_and_notes(x[4:])
+            if date:
+                res['death date'] = date
+            if notes:
+                res['death notes'] = notes
+        elif x6 == 'SP: * ':
+            res.setdefault('spouse', []).append(x[6:].strip())
+        elif x4 == 'RN: ':
+            n = x[4:].strip()
+            if not n: continue
+            rn = build_name(analyze_name(n, canonical=1), canonical=1)
+            res['birth name'] = rn
+        elif x6 == 'AT: * ':
+            res.setdefault('articles', []).append(x[6:].strip())
+        elif x4 == 'HT: ':
+            res['height'] = x[4:].strip()
+        elif x6 == 'PT: * ':
+            res.setdefault('pictorials', []).append(x[6:].strip())
+        elif x6 == 'CV: * ':
+            res.setdefault('magazine covers', []).append(x[6:].strip())
+        elif x4 == 'NK: ':
+            res.setdefault('nick names', []).append(normalizeName(x[4:]))
+        elif x6 == 'PI: * ':
+            res.setdefault('portrayed', []).append(x[6:].strip())
+        elif x6 == 'SA: * ':
+            sal = x[6:].strip().replace(' -> ', '::')
+            res.setdefault('salary history', []).append(sal)
+
+    trl = _parseList(biol, 'TR')
+    if trl: res['trivia'] = trl
+    quotes = _parseList(biol, 'QU')
+    if quotes: res['quotes'] = quotes
+    otherworks = _parseList(biol, 'OW')
+    if otherworks: res['other works'] = otherworks
+    books = _parseList(biol, 'BO')
+    if books: res['books'] = books
+    agent = _parseList(biol, 'AG')
+    if agent: res['agent address'] = agent
+    wherenow = _parseList(biol, 'WN')
+    if wherenow: res['where now'] = wherenow[0]
+    biomovies = _parseList(biol, 'BT')
+    if biomovies: res['biographical movies'] = biomovies
+    tm = _parseList(biol, 'TM')
+    if tm: res['trademarks'] = tm
+    interv = _parseList(biol, 'IT')
+    if interv: res['interviews'] = interv
+    return res
+
+# ============
+
+
 def doNMMVFiles():
     """Files with large sections, about movies and persons."""
     for fname, start, funct in [
-            ('biographies.list.gz',BIO_START,_parseBiography),
-            ('business.list.gz',BUS_START,getBusiness),
-            ('laserdisc.list.gz',LSD_START,getLaserDisc),
-            ('literature.list.gz',LIT_START,getLiterature),
-            ('mpaa-ratings-reasons.list.gz',MPAA_START,getMPAA),
-            ('plot.list.gz',PLOT_START,getPlot)]:
+            ('biographies.list.gz', BIO_START, _parseBiography),
+            ('business.list.gz', BUS_START, getBusiness),
+            ('laserdisc.list.gz', LSD_START, getLaserDisc),
+            ('literature.list.gz', LIT_START, getLiterature),
+            ('mpaa-ratings-reasons.list.gz', MPAA_START, getMPAA),
+            ('plot.list.gz', PLOT_START, getPlot)]:
     ##for fname, start, funct in [('business.list.gz',BUS_START,getBusiness)]:
         try:
             fp = SourceFile(fname, start=start)
@@ -2284,7 +2526,11 @@ def notNULLimdbID(cls):
         return []
     for t in tons:
         if cls is Title:
-            md = get_movie_data(t.id, _kdict, _table=Title)
+            # imdb.parser.sql is not initialized, and we need
+            # to set imdb.parser.sql.Title .
+            import imdb.parser.sql
+            imdb.parser.sql.Title = cls
+            md = get_movie_data(t.id, _kdict, _table=cls)
         elif cls is CompanyName:
             md = {'name': t.name}
             if t.countryCode is not None:
@@ -2324,14 +2570,21 @@ def restoreImdbID(tons, cls):
         else:
             t_str = build_name(t)
         t_str = t_str.encode('utf_8')
-        db_mopID = CACHE.get(t_str)
+        if CSV_ONLY_LOAD:
+            # Big assumption: that we're running
+            # --csv-only-load on the same set of data/db...
+            db_mopID = t['imdbID']
+        else:
+            db_mopID = CACHE.get(t_str)
+        #print 'DEBUG: %s' % t_str, db_mopID
         if db_mopID is None:
             continue
         try:
             mop_in_db = cls.get(db_mopID)
             try:
                 mop_in_db.imdbID = t['imdbID']
-            except:
+            except Exception, e:
+                print 'WARNING: error writing imdbID: %s' % e
                 continue
         except NotFoundError:
             continue
@@ -2339,7 +2592,20 @@ def restoreImdbID(tons, cls):
     print 'DONE! (restored %d entries out of %d)' % (count, len(tons))
 
 
+def runSafely(funct, fmsg, default, *args, **kwds):
+    """Run the function 'funct' with arguments args and
+    kwds, catching every exception; fmsg is printed out (along
+    with the exception message) in case of trouble; the return
+    value of the function is returned (or 'default')."""
+    try:
+        return funct(*args, **kwds)
+    except Exception, e:
+        print 'WARNING: %s: %s' % (fmsg, e)
+    return default
+
+
 def _executeQuery(query):
+    """Execute a query on the CURS object."""
     print 'EXECUTING "%s"...' % (query),
     sys.stdout.flush()
     try:
@@ -2374,6 +2640,68 @@ def executeCustomQueries(when, _keys=None, _timeit=True):
                 t('%s command' % when)
 
 
+def pickle_ids(idl, fname):
+    """Put imdbIDs in a pickle file."""
+    try:
+        fd = open(os.path.join(CSV_DIR, fname), 'w')
+        pickle.dump(idl, fd, pickle.HIGHEST_PROTOCOL)
+        fd.close()
+    except Exception, e:
+        print 'WARNING: unable to save imdbIDs: %s' % e
+
+def unpickle_ids(fname):
+    """Read imdbIDs from a pickle file."""
+    try:
+        fd = open(os.path.join(CSV_DIR, fname), 'r')
+        idl = pickle.load(fd)
+        fd.close()
+    except Exception, e:
+        print 'WARNING: unable to load imdbIDs: %s' % e
+        idl = []
+    return idl
+
+
+def buildIndexesAndFK():
+    """Build indexes and Foreign Keys."""
+    executeCustomQueries('BEFORE_INDEXES')
+    print 'building database indexes (this may take a while)'
+    sys.stdout.flush()
+    # Build database indexes.
+    createIndexes(DB_TABLES)
+    t('createIndexes()')
+    print 'adding foreign keys (this may take a while)'
+    sys.stdout.flush()
+    # Add FK.
+    createForeignKeys(DB_TABLES)
+    t('createForeignKeys()')
+
+
+def restoreCSV():
+    """Only restore data from a set of CSV files."""
+    movies_imdbIDs = unpickle_ids('movies_imdbIDs.pkl')
+    people_imdbIDs = unpickle_ids('people_imdbIDs.pkl')
+    characters_imdbIDs = unpickle_ids('characters_imdbIDs.pkl')
+    companies_imdbIDs = unpickle_ids('companies_imdbIDs.pkl')
+    CSV_CURS.buildFakeFileNames()
+    print 'loading CSV files into the database'
+    executeCustomQueries('BEFORE_CSV_LOAD')
+    loadCSVFiles()
+    t('loadCSVFiles()')
+    executeCustomQueries('BEFORE_RESTORE')
+    runSafely(restoreImdbID, 'failed to restore imdbIDs for movies', None,
+                movies_imdbIDs, Title)
+    runSafely(restoreImdbID, 'failed to restore imdbIDs for people', None,
+                people_imdbIDs, Name)
+    runSafely(restoreImdbID, 'failed to restore imdbIDs for characters',
+                None, characters_imdbIDs, CharName)
+    runSafely(restoreImdbID, 'failed to restore imdbIDs for companies',
+                None, companies_imdbIDs, CompanyName)
+    t('TOTAL TIME TO LOAD CSV FILES', sinceBegin=True)
+    buildIndexesAndFK()
+    executeCustomQueries('END')
+    t('FINAL', sinceBegin=True)
+
+
 # begin the iterations...
 def run():
     print 'RUNNING imdbpy2sql.py'
@@ -2381,26 +2709,21 @@ def run():
     executeCustomQueries('BEGIN')
 
     # Storing imdbIDs for movies and persons.
-    try:
-        movies_imdbIDs = notNULLimdbID(Title)
-    except Exception, e:
-        movies_imdbIDs = []
-        print 'WARNING: failed to read imdbIDs for movies: %s' % e
-    try:
-        people_imdbIDs = notNULLimdbID(Name)
-    except Exception, e:
-        people_imdbIDs = []
-        print 'WARNING: failed to read imdbIDs for people: %s' % e
-    try:
-        characters_imdbIDs = notNULLimdbID(CharName)
-    except Exception, e:
-        characters_imdbIDs = []
-        print 'WARNING: failed to read imdbIDs for characters: %s' % e
-    try:
-        companies_imdbIDs = notNULLimdbID(CompanyName)
-    except Exception, e:
-        companies_imdbIDs = []
-        print 'WARNING: failed to read imdbIDs for companies: %s' % e
+    movies_imdbIDs = runSafely(notNULLimdbID,
+                                'failed to read imdbIDs for movies', [], Title)
+    people_imdbIDs = runSafely(notNULLimdbID,
+                                'failed to read imdbIDs for people', [], Name)
+    characters_imdbIDs = runSafely(notNULLimdbID,
+                                'failed to read imdbIDs for characters', [],
+                                CharName)
+    companies_imdbIDs = runSafely(notNULLimdbID,
+                                'failed to read imdbIDs for companies', [],
+                                CompanyName)
+    if CSV_DIR:
+        pickle_ids(movies_imdbIDs, 'movies_imdbIDs.pkl')
+        pickle_ids(people_imdbIDs, 'people_imdbIDs.pkl')
+        pickle_ids(characters_imdbIDs, 'characters_imdbIDs.pkl')
+        pickle_ids(companies_imdbIDs, 'companies_imdbIDs.pkl')
 
     # Truncate the current database.
     print 'DROPPING current database...',
@@ -2435,9 +2758,11 @@ def run():
     doMovieCompaniesInfo()
     # Do this now, and free some memory.
     CACHE_COMPID.flush()
-    restoreImdbID(companies_imdbIDs, CompanyName)
-    del companies_imdbIDs
-    CACHE_COMPID.clear()
+    if not CSV_DIR:
+        runSafely(restoreImdbID, 'failed to restore imdbIDs for companies',
+                    None, companies_imdbIDs, CompanyName)
+        del companies_imdbIDs
+        CACHE_COMPID.clear()
 
     executeCustomQueries('BEFORE_CAST')
 
@@ -2447,7 +2772,8 @@ def run():
     castLists(_charIDsList=characters_imdbIDs)
     ##CACHE_PID.populate()
     ##CACHE_CID.populate()
-    del characters_imdbIDs
+    if not CSV_DIR:
+        del characters_imdbIDs
 
     # Aka names and titles.
     doAkaNames()
@@ -2482,61 +2808,63 @@ def run():
     completeCast()
     t('completeCast()')
 
-    executeCustomQueries('BEFORE_RESTORE')
-
-    # Restoring imdbIDs for movies and persons.
-    try:
-        restoreImdbID(movies_imdbIDs, Title)
-        del movies_imdbIDs
-    except Exception, e:
-        print 'WARNING: failed to restore imdbIDs for movies: %s' % e
-    try:
-        restoreImdbID(people_imdbIDs, Name)
-        del people_imdbIDs
-    except Exception, e:
-        print 'WARNING: failed to restore imdbIDs for people: %s' % e
-
     if CSV_DIR:
         CSV_CURS.closeAll()
+    else:
+        executeCustomQueries('BEFORE_RESTORE')
+
+        # Restoring imdbIDs for movies and persons.
+        runSafely(restoreImdbID, 'failed to restore imdbIDs for movies', None,
+                    movies_imdbIDs, Title)
+        del movies_imdbIDs
+        runSafely(restoreImdbID, 'failed to restore imdbIDs for people', None,
+                    people_imdbIDs, Name)
+        del people_imdbIDs
 
     # Flush caches.
     CACHE_MID.flush()
-    CACHE_MID.clear()
     CACHE_PID.flush()
-    CACHE_PID.clear()
     CACHE_CID.flush()
-    CACHE_CID.clear()
+    if not CSV_DIR:
+        CACHE_MID.clear()
+        CACHE_PID.clear()
+        CACHE_CID.clear()
     t('fushing caches...')
+
+    if CSV_ONLY_WRITE:
+        t('TOTAL TIME TO WRITE CSV FILES', sinceBegin=True)
+        executeCustomQueries('END')
+        t('FINAL', sinceBegin=True)
+        return
 
     if CSV_DIR:
         print 'loading CSV files into the database'
         executeCustomQueries('BEFORE_CSV_LOAD')
         loadCSVFiles()
         t('loadCSVFiles()')
+        executeCustomQueries('BEFORE_RESTORE')
+
+        # Restoring imdbIDs for movies and persons.
+        runSafely(restoreImdbID, 'failed to restore imdbIDs for movies', None,
+                    movies_imdbIDs, Title)
+        del movies_imdbIDs
+        runSafely(restoreImdbID, 'failed to restore imdbIDs for people', None,
+                    people_imdbIDs, Name)
+        del people_imdbIDs
+        runSafely(restoreImdbID, 'failed to restore imdbIDs for characters',
+                    None, characters_imdbIDs, CharName)
+        del characters_imdbIDs
+        runSafely(restoreImdbID, 'failed to restore imdbIDs for companies',
+                    None, companies_imdbIDs, CompanyName)
+        del companies_imdbIDs
 
     t('TOTAL TIME TO INSERT/WRITE DATA', sinceBegin=True)
-    #print 'TOTAL TIME TO INSERT/WRITE DATA: %d minutes, %d seconds' % \
-    #        divmod(int(time.time())-BEGIN_TIME, 60)
 
-    executeCustomQueries('BEFORE_INDEXES')
-
-    print 'building database indexes (this may take a while)'
-    sys.stdout.flush()
-    # Build database indexes.
-    createIndexes(DB_TABLES)
-    t('createIndexes()')
-
-    print 'adding foreign keys (this may take a while)'
-    sys.stdout.flush()
-    # Add FK.
-    createForeignKeys(DB_TABLES)
-    t('createForeignKeys()')
+    buildIndexesAndFK()
 
     executeCustomQueries('END')
 
     t('FINAL', sinceBegin=True)
-    #print 'DONE! (in %d minutes, %d seconds)' % \
-    #        divmod(int(time.time())-BEGIN_TIME, 60)
 
 
 _HEARD = 0
@@ -2577,5 +2905,8 @@ if __name__ == '__main__':
         print ''
     import signal
     signal.signal(signal.SIGINT, _kdb_handler)
-    run()
+    if CSV_ONLY_LOAD:
+        restoreCSV()
+    else:
+        run()
 

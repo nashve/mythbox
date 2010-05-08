@@ -1,21 +1,27 @@
-# -*- coding: utf-8 -*-
-"""
-Connector/Python, native MySQL driver written in Python.
-Copyright 2009 Sun Microsystems, Inc. All rights reserved. Use is subject to license terms.
+# MySQL Connector/Python - MySQL driver written in Python.
+# Copyright 2009 Sun Microsystems, Inc. All rights reserved
+# Use is subject to license terms. (See COPYING)
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation.
+# 
+# There are special exceptions to the terms and conditions of the GNU
+# General Public License as it is applied to this software. View the
+# full text of the exception in file EXCEPTIONS-CLIENT in the directory
+# of this software distribution or see the FOSS License Exception at
+# www.mysql.com.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+"""Various MySQL constants and character sets
 """
 
 from errors import ProgrammingError
@@ -45,7 +51,17 @@ class _constants(object):
             if v[0] == n:
                 return v[1]
         raise KeyError, e
-
+    
+    @classmethod
+    def get_full_info(cls):
+        res = ()
+        try:
+            res = ["%s : %s" % (k,v[1]) for k,v in cls.desc.items()]
+        except StandardError, e:
+            res = ('No information found in constant class.%s' % e)
+        
+        return res
+            
 class FieldType(_constants):
     
     prefix = 'FIELD_TYPE_'
@@ -279,6 +295,24 @@ class ClientFlag(_constants):
         'SSL_VERIFY_SERVER_CERT':     (1 << 30, ''),
         'REMEMBER_OPTIONS':           (1 << 31, ''),
     }
+    
+    default = [
+        LONG_PASSWD,
+        LONG_FLAG,
+        CONNECT_WITH_DB,
+        PROTOCOL_41,
+        TRANSACTIONS,
+        SECURE_CONNECTION,
+        MULTI_STATEMENTS,
+        MULTI_RESULTS,
+    ]
+
+    @classmethod
+    def get_default(cls):
+        flags = 0
+        for f in cls.default:
+            flags |= f
+        return flags
 
 class ServerFlag(_constants):
     """

@@ -2,10 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import sys, os
-sys.path.append('../')
 
 import mysql.connector
-from config import Config
 
 """
 
@@ -14,11 +12,9 @@ Example using MySQL Connector/Python showing:
 
 """
 
-if __name__ == '__main__':
-    #
-    # Configure MySQL login and database to use in config.py
-    #
-    db = mysql.connector.Connect(**Config.dbinfo())
+def main(config):
+    config['get_warnings'] = True
+    db = mysql.connector.Connect(**config)
     cursor = db.cursor()
     
     stmt_select = "SELECT 'abc'+1"
@@ -28,10 +24,21 @@ if __name__ == '__main__':
     
     print "Execute '%s'" % stmt_select
     cursor.execute(stmt_select)
+    cursor.fetchall()
     
-    if cursor.warnings:
-        print cursor.warnings
+    warnings = cursor.fetchwarnings()
+    if warnings:
+        print warnings
     else:
         print "We should have got warnings."
+        raise StandardError("Got no warnings")
 
     db.close()
+
+if __name__ == '__main__':
+    #
+    # Configure MySQL login and database to use in config.py
+    #
+    from config import Config
+    config = Config.dbinfo().copy()
+    main(config)

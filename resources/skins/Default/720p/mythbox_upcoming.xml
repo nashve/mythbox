@@ -16,6 +16,7 @@
 <!--    <color name="black">FF000000</color>-->
 <!--    <color name="green">ffe2ff43</color>-->
 <!--    <color name="dialogheader">DDced8da</color>-->
+<!--    lavender 0xffddddff -->
 <!--</colors>-->
 
   <controls>
@@ -64,7 +65,7 @@
             <posy>140</posy>
             <width>900</width>
             <height>40</height>
-            <texture flipx="true">header.png</texture>
+            <texture flipx="true">mb-header.png</texture>
         </control>
         
         <control type="label">
@@ -81,7 +82,7 @@
         </control>
 
         <control type="label">
-            <posx>525</posx>
+            <posx>465</posx>
             <posy>140</posy>
             <width>200</width>
             <height>35</height>
@@ -94,7 +95,7 @@
         </control>
 
         <control type="label">
-            <posx>725</posx>
+            <posx>815</posx>
             <posy>140</posy>
             <width>500</width>
             <height>35</height>
@@ -104,6 +105,32 @@
             <align>left</align>
             <aligny>center</aligny>
             <label>[B]Start Time[/B]</label>
+        </control>
+
+        <control type="label">
+            <posx>1015</posx>
+            <posy>140</posy>
+            <width>100</width>
+            <height>35</height>
+            <font>font12</font>
+            <textcolor>ffddddff</textcolor>
+            <selectedcolor>FFe2ff43</selectedcolor>
+            <align>left</align>
+            <aligny>center</aligny>
+            <label>[B]Channel[/B]</label>
+        </control>
+
+        <control type="label">
+            <posx>1145</posx>
+            <posy>140</posy>
+            <width>100</width>
+            <height>35</height>
+            <font>font12</font>
+            <textcolor>ffddddff</textcolor>
+            <selectedcolor>FFe2ff43</selectedcolor>
+            <align>left</align>
+            <aligny>center</aligny>
+            <label>[B]Tuner[/B]</label>
         </control>
 
         <!-- ============================================= -->
@@ -120,9 +147,12 @@
             <ondown>600</ondown>
             <viewtype label="535">list</viewtype>
             <pagecontrol>6000</pagecontrol>
+            
+            <!-- 
             <scrolltime>0</scrolltime>
             <preloaditems>10</preloaditems>
-
+            -->
+            
             <itemlayout height="30">
                 
                 <!-- 
@@ -388,6 +418,7 @@
             <onright>250</onright>
             <showonepage>false</showonepage>
             <orientation>vertical</orientation>
+            <visible>false</visible>
         </control>
 
 <!--        <control type="image" id="4010">-->
@@ -419,7 +450,7 @@
       <posy>0</posy>
       <width>1280</width>
       <height>128</height>
-      <texture>header.png</texture>
+      <texture>mb-header.png</texture>
     </control>
 
     <control type="image">
@@ -429,7 +460,8 @@
         <height>90</height>
         <texture>mythbox.png</texture>
         <aspectratio align="left">keep</aspectratio>
-        <include>Window_OpenClose_Animation</include>
+        <animation effect="fade" time="200">WindowOpen</animation>
+        <animation effect="fade" time="200">WindowClose</animation>
     </control>
 
     <control type="label">
@@ -442,7 +474,8 @@
       <aligny>center</aligny>
       <textcolor>ffffffff</textcolor>
       <label>Upcoming Recordings</label>
-      <include>Window_OpenClose_Animation</include>
+      <animation effect="fade" time="200">WindowOpen</animation>
+      <animation effect="fade" time="200">WindowClose</animation>
       <visible>false</visible>
     </control>
 
@@ -456,7 +489,8 @@
       <aligny>center</aligny>
       <textcolor>ffffffff</textcolor>
       <label>[B]Upcoming Recordings[/B]</label>
-      <include>Window_OpenClose_Animation</include>
+      <animation effect="fade" time="200">WindowOpen</animation>
+      <animation effect="fade" time="200">WindowClose</animation>
     </control>
 
     <control type="label">
@@ -470,65 +504,58 @@
       <font>font12</font>
       <textcolor>ffffffff</textcolor>
       <label>$INFO[System.Date] [COLOR=88FFFFFF] |  $INFO[System.Time][/COLOR]</label>
-      <include>Window_OpenClose_Animation</include>
+      <animation effect="fade" time="200">WindowOpen</animation>
+      <animation effect="fade" time="200">WindowClose</animation>
     </control>
-        
-    <!-- ============================================= -->
-    <!--  N A V     B U T T O N S                      -->          
-    <!-- ============================================= -->              
-    <control type="grouplist" id="2000">
-        <description>Buttons</description>
-        <posx>0</posx>
-        <posy>122</posy>
-        <itemgap>1</itemgap>
-        <onup>2000</onup>
-        <ondown>2000</ondown>
-        <onleft>600</onleft>
-        <onright>600</onright>
-        
+
+    <control type="group">
         <!-- Copy of include Window_OpenClose_Left_Panel_Animation -->
         <animation effect="fade" time="200" condition="Skin.HasSetting(Animate_Skin)">WindowOpen</animation>
         <animation effect="fade" time="200" condition="Skin.HasSetting(Animate_Skin)">WindowClose</animation>
         <animation effect="slide" start="-400,0" end="0,0" time="300" tween="quadratic" easing="out" condition="!Skin.HasSetting(Animate_Skin)">WindowOpen</animation>
         <animation effect="slide" end="-400,0" start="0,0" time="300" tween="quadratic" easing="out" condition="!Skin.HasSetting(Animate_Skin)">WindowClose</animation>
         
-        <control type="button" id="250">
-            <description>Refresh button</description>
-            <label>Refresh</label>
-            <width>285</width>
-            <align>left</align>
-            <textoffsetx>40</textoffsetx>
-            <texturefocus>button_focus.png</texturefocus>
-            <texturenofocus>button_nofocus.png</texturenofocus>
-            <pulseonselect>true</pulseonselect>
-            <enable>!substring(Window.Property(busy),true)</enable>
+        <control type="grouplist" id="2000">
+            <description>Buttons</description>
+            <posx>0</posx>
+            <posy>122</posy>
+            <itemgap>1</itemgap>
+            <onup>2000</onup>
+            <ondown>2000</ondown>
+            <onleft>600</onleft>
+            <onright>600</onright>
+            <control type="button" id="250">
+                <description>Refresh button</description>
+                <label>Refresh</label>
+                <width>285</width>
+                <align>left</align>
+                <textoffsetx>40</textoffsetx>
+                <texturefocus>button_focus.png</texturefocus>
+                <texturenofocus>button_nofocus.png</texturenofocus>
+                <pulseonselect>true</pulseonselect>
+                <enable>!substring(Window.Property(busy),true)</enable>
+            </control>
         </control>
-         
-    </control>
     
-    <control type="image">
-        <posx>30</posx>
-        <posy>190</posy>
-        <width>230</width>
-        <height>386</height>
-        <aspectratio aligny="bottom">keep</aspectratio>
-        <!--info aligny="bottom">Container(600).ListItem.Property(poster)</info-->
-        <texture>$INFO[Container(600).ListItem.Property(poster)]</texture>
-        <animation effect="fade" time="500">WindowOpen</animation>
-        <animation effect="fade" time="500">WindowClose</animation>
-        <!-- <visible>!Player.HasVideo</visible>-->
-    </control>
-
-    <control type="image">
-        <posx>30</posx>
-        <posy>586</posy>
-        <width>230</width>
-        <height>386</height>
-        <aspectratio aligny="top">keep</aspectratio>
-        <texture flipy="true" diffuse="diffuse_mirror2.png">$INFO[Container(600).ListItem.Property(poster)]</texture>
-        <animation effect="fade" time="500">WindowOpen</animation>
-        <animation effect="fade" time="500">WindowClose</animation>
-        <!--<visible>!Player.HasVideo</visible>-->
+        <control type="image">
+            <posx>30</posx>
+            <posy>190</posy>
+            <width>230</width>
+            <height>386</height>
+            <aspectratio aligny="bottom">keep</aspectratio>
+            <fadetime>400</fadetime>
+            <texture>$INFO[Container(600).ListItem.Property(poster)]</texture>
+        </control>
+    
+        <control type="image">
+            <posx>30</posx>
+            <posy>586</posy>
+            <width>230</width>
+            <height>386</height>
+            <aspectratio aligny="top">keep</aspectratio>
+            <fadetime>400</fadetime>
+            <texture flipy="true" diffuse="diffuse_mirror2.png">$INFO[Container(600).ListItem.Property(poster)]</texture>
+        </control>
     </control>
 
     <control type="multiimage">

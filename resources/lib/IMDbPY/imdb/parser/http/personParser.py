@@ -8,7 +8,7 @@ E.g., for "Mel Gibson" the referred pages would be:
     biography:      http://akas.imdb.com/name/nm0000154/bio
     ...and so on...
 
-Copyright 2004-2009 Davide Alberani <da@erlug.linux.it>
+Copyright 2004-2010 Davide Alberani <da@erlug.linux.it>
                2008 H. Turgut Uyar <uyar@tekir.org>
 
 This program is free software; you can redistribute it and/or modify
@@ -63,24 +63,25 @@ class DOMHTMLMaindetailsParser(DOMParserBase):
 
     _birth_attrs = [Attribute(key='birth date',
                         path={
-                            'day': "./a[starts-with(@href, " \
-                                    "'/OnThisDay?')]/text()",
-                            'year': "./a[starts-with(@href, " \
-                                    "'/BornInYear?')]/text()"
+                            'day': "./div/a[starts-with(@href, " \
+                                    "'/date/')]/text()",
+                            'year': "./div/a[starts-with(@href, " \
+                                    "'/search/name?birth_year=')]/text()"
                             },
                         postprocess=build_date),
                     Attribute(key='birth notes',
-                        path="./a[starts-with(@href, '/BornWhere?')]/text()")]
+                        path="./div/a[starts-with(@href, " \
+                                "'/search/name?birth_place=')]/text()")]
     _death_attrs = [Attribute(key='death date',
                         path={
-                            'day': "./a[starts-with(@href, " \
-                                    "'/OnThisDay?')]/text()",
-                            'year': "./a[starts-with(@href, " \
-                                    "'/DiedInYear?')]/text()"
+                            'day': "./div/a[starts-with(@href, " \
+                                    "'/date/')]/text()",
+                            'year': "./div/a[starts-with(@href, " \
+                                    "'/search/name?death_date=')]/text()"
                             },
                         postprocess=build_date),
                     Attribute(key='death notes',
-                        path="./text()",
+                        path="./div/text()",
                         # TODO: check if this slicing is always correct
                         postprocess=lambda x: x.strip()[2:])]
     _film_attrs = [Attribute(key=None,
@@ -121,7 +122,7 @@ class DOMHTMLMaindetailsParser(DOMParserBase):
             Extractor(label='akas',
                         path="//div[h5='Alternate Names:']",
                         attrs=Attribute(key='akas',
-                            path="./text()",
+                            path="./div/text()",
                             postprocess=lambda x: x.strip().split(' | '))),
 
             Extractor(label='filmography',
@@ -159,19 +160,20 @@ class DOMHTMLBioParser(DOMParserBase):
     _birth_attrs = [Attribute(key='birth date',
                         path={
                             'day': "./a[starts-with(@href, " \
-                                    "'/OnThisDay?')]/text()",
+                                    "'/date/')]/text()",
                             'year': "./a[starts-with(@href, " \
-                                    "'/BornInYear?')]/text()"
+                                    "'/search/name?birth_year=')]/text()"
                             },
                         postprocess=build_date),
                     Attribute(key='birth notes',
-                        path="./a[starts-with(@href, '/BornWhere?')]/text()")]
+                        path="./a[starts-with(@href, " \
+                                "'/search/name?birth_place=')]/text()")]
     _death_attrs = [Attribute(key='death date',
                         path={
                             'day': "./a[starts-with(@href, " \
-                                    "'/OnThisDay?')]/text()",
+                                    "'/date/')]/text()",
                             'year': "./a[starts-with(@href, " \
-                                    "'/DiedInYear?')]/text()"
+                                    "'/search/name?death_date=')]/text()"
                             },
                         postprocess=build_date),
                     Attribute(key='death notes',

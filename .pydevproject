@@ -20,6 +20,9 @@
 <path>/xbmc-mythtv2/resources/lib/shove</path>
 <path>/xbmc-mythtv2/resources/lib/durus</path>
 <path>/xbmc-mythtv2/resources/lib/mysql-connector-python</path>
+<path>/xbmc-mythtv2/resources/lib/htmltestrunner</path>
+<path>/xbmc-mythtv2/resources/lib/feedparser</path>
+<path>/xbmc-mythtv2/resources/lib/python-twitter</path>
 </pydev_pathproperty>
 <pydev_property name="org.python.pydev.PYTHON_PROJECT_INTERPRETER">Default</pydev_property>
 </pydev_project>

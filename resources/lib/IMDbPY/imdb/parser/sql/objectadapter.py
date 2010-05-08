@@ -1,7 +1,7 @@
 """
 parser.sql.objectadapter module (imdb.parser.sql package).
 
-This module adpts the SQLObject ORM to the internal mechanism.
+This module adapts the SQLObject ORM to the internal mechanism.
 
 Copyright 2008-2009 Davide Alberani <da@erlug.linux.it>
 
@@ -173,9 +173,10 @@ def setConnection(uri, tables, encoding='utf8', debug=False):
     # FIXME: it's absolutely unclear what we should do to correctly
     #        support unicode in MySQL; with some versions of SQLObject,
     #        it seems that setting use_unicode=1 is the _wrong_ thing to do.
-    if uri.lower().startswith('mysql'):
+    _uriLower = uri.lower()
+    if _uriLower.startswith('mysql'):
         kw['use_unicode'] = 1
-        kw['sqlobject_encoding'] = encoding
+        #kw['sqlobject_encoding'] = encoding
         kw['charset'] = encoding
     conn = connectionForURI(uri, **kw)
     conn.debug = debug

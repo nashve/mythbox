@@ -16,18 +16,17 @@
 #  along with this program; if not, write to the Free Software
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #
-
 import datetime
 import logging
-import logging.config
 import unittest
 
-from domain import ScheduleFromProgram
 from mockito import Mock
-from mythdb import MythDatabase
-from mythtv import MythSettings
+from mythbox.mythtv.db import MythDatabase
+from mythbox.mythtv.domain import ScheduleFromProgram
+from mythbox.platform import Platform
+from mythbox.settings import MythSettings
+from mythbox.util import OnDemandConfig
 from unittest import TestCase
-from util import OnDemandConfig, Platform
 
 log = logging.getLogger('mythtv.unittest')
 
@@ -49,8 +48,7 @@ class MythDatabaseTest(TestCase):
         
     def test_saveSchedule_NewSchedule(self):
         now = datetime.datetime.now()
-        
-        programs = self.db.getProgramListings(now, now)
+        programs = self.db.getTVGuideDataFlattened(now, now, self.db.getChannels())
         if len(programs) == 0:
             log.warn('Cannot run unit tests without program listings in the database')
             return
@@ -61,6 +59,7 @@ class MythDatabaseTest(TestCase):
         log.debug('Save schedule result = %s' % result)
         
 # =============================================================================
-if __name__ == "__main__":
+if __name__ == '__main__':
+    import logging.config
     logging.config.fileConfig('mythbox_log.ini')
     unittest.main()        

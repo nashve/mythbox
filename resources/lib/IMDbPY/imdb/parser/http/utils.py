@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 """
 
 import re
+import logging
 import warnings
 
 from imdb._exceptions import IMDbError
@@ -112,8 +113,14 @@ entcharrefs['#xa0'] = u' '
 entcharrefs['#XA0'] = u' '
 entcharrefs['#x22'] = u'"'
 entcharrefs['#X22'] = u'"'
+# convert &x26; to &amp;, to make BeautifulSoup happy; beware that this
+# leaves lone '&' in the html broken, but I assume this is better than
+# the contrary...
+entcharrefs['#38'] = u'&amp;'
+entcharrefs['#x26'] = u'&amp;'
+entcharrefs['#x26'] = u'&amp;'
 
-re_entcharrefs = re.compile('&(%s|\#160|\#\d{1,5}|\#x[0-9a-f]{1,3});' %
+re_entcharrefs = re.compile('&(%s|\#160|\#\d{1,5}|\#x[0-9a-f]{1,4});' %
                             '|'.join(map(re.escape, entcharrefs)), re.I)
 re_entcharrefssub = re_entcharrefs.sub
 
@@ -138,6 +145,9 @@ def _replXMLRef(match):
             if ref_code in ('34', '38', '60', '62', '39'):
                 return match.group(0)
             elif ref_code[0].lower() == 'x':
+                #if ref[2:] == '26':
+                #    # Don't convert &x26; to &amp;, to make BeautifulSoup happy.
+                #    return '&amp;'
                 return unichr(int(ref[2:], 16))
             else:
                 return unichr(int(ref[1:]))
@@ -162,10 +172,13 @@ def subSGMLRefs(s):
     return re_sgmlrefsub(_replSGMLRefs, s)
 
 
+_b_p_logger = logging.getLogger('imdbpy.parser.http.build_person')
 def build_person(txt, personID=None, billingPos=None,
                 roleID=None, accessSystem='http', modFunct=None):
     """Return a Person instance from the tipical <tr>...</tr> strings
     found in the IMDb's web site."""
+    #if personID is None
+    #    _b_p_logger.debug('empty name or personID for "%s"', txt)
     notes = u''
     role = u''
     # Search the (optional) separator between name and role/notes.
@@ -236,6 +249,9 @@ def build_person(txt, personID=None, billingPos=None,
         roleID = str(roleID)
     if personID is not None:
         personID = str(personID)
+    if (not name) or (personID is None):
+        # Set to 'debug', since build_person is expected to receive some crap.
+        _b_p_logger.debug('empty name or personID for "%s"', txt)
     # XXX: return None if something strange is detected?
     person = Person(name=name, personID=personID, currentRole=role,
                     roleID=roleID, notes=notes, billingPos=billingPos,
@@ -247,6 +263,7 @@ def build_person(txt, personID=None, billingPos=None,
     return person
 
 
+_b_m_logger = logging.getLogger('imdbpy.parser.http.build_movie')
 # To shrink spaces.
 re_spaces = re.compile(r'\s+')
 def build_movie(txt, movieID=None, roleID=None, status=None,
@@ -337,6 +354,8 @@ def build_movie(txt, movieID=None, roleID=None, status=None,
         roleID = str(roleID)
     if movieID is not None:
         movieID = str(movieID)
+    if (not title) or (movieID is None):
+        _b_m_logger.error('empty title or movieID for "%s"', txt)
     m = Movie(title=title, movieID=movieID, notes=notes, currentRole=role,
                 roleID=roleID, roleIsPerson=_parsingCharacter,
                 modFunct=modFunct, accessSystem=accessSystem)
@@ -359,7 +378,13 @@ class DOMParserBase(object):
     extractors = []
     usingModule = None
 
+    _logger = logging.getLogger('imdbpy.parser.http.domparser')
+
     def __init__(self, useModule=None):
+        """Initialize the parser. useModule can be used to force it
+        to use 'BeautifulSoup' or 'lxml'; by default, it's auto-detected,
+        using 'lxml' if available and falling back to 'BeautifulSoup'
+        otherwise."""
         # Module to use.
         if useModule is None:
             useModule = ('lxml', 'BeautifulSoup')
@@ -382,19 +407,19 @@ class DOMParserBase(object):
                     self._is_xml_unicode = True
                     self.usingModule = 'beautifulsoup'
                 else:
-                    warnings.warn('unknown module "%s".' % mod)
+                    warnings.warn('unknown module "%s"' % mod)
                     continue
                 self.fromstring = fromstring
                 self._tostring = tostring
                 if _gotError:
-                    warnings.warn('falling back to "%s".' % mod)
+                    warnings.warn('falling back to "%s"' % mod)
                 break
             except ImportError, e:
                 if idx+1 >= nrMods:
                     # Raise the exception, if we don't have any more
                     # options to try.
-                    raise IMDbError, 'unable to use any parser in %s: %s' % (
-                                                    str(useModule), str(e))
+                    raise IMDbError, 'unable to use any parser in %s: %s' % \
+                                    (str(useModule), str(e))
                 else:
                     warnings.warn('unable to use "%s": %s' % (mod, str(e)))
                     _gotError = True
@@ -404,6 +429,7 @@ class DOMParserBase(object):
         # Fall-back defaults.
         self._modFunct = None
         self._as = 'http'
+        self._cname = self.__class__.__name__
         self._init()
         self.reset()
 
@@ -416,24 +442,26 @@ class DOMParserBase(object):
         self._reset()
 
     def _init(self):
+        """Subclasses can override this method, if needed."""
         pass
 
     def _reset(self):
+        """Subclasses can override this method, if needed."""
         pass
 
     def parse(self, html_string, getRefs=None, **kwds):
-        """Return the dictionary generated from the given html string."""
+        """Return the dictionary generated from the given html string;
+        getRefs can be used to force the gathering of movies/persons/characters
+        references."""
         self.reset()
         if getRefs is not None:
             self.getRefs = getRefs
         else:
             self.getRefs = self._defGetRefs
-        # XXX: useful only for the testsuite.
+        # Useful only for the testsuite.
         if not isinstance(html_string, unicode):
             html_string = unicode(html_string, 'latin_1', 'replace')
         html_string = subXMLRefs(html_string)
-        ## Not required?
-        ##html_string = subSGMLRefs(html_string)
         # Temporary fix: self.parse_dom must work even for empty strings.
         html_string = self.preprocess_string(html_string)
         html_string = html_string.strip()
@@ -443,45 +471,83 @@ class DOMParserBase(object):
             html_string = html_string.replace('""', '"')
         if html_string:
             dom = self.get_dom(html_string)
-            dom = self.preprocess_dom(dom)
+            try:
+                dom = self.preprocess_dom(dom)
+            except Exception, e:
+                self._logger.error('%s: caught exception preprocessing DOM',
+                                    self._cname, exc_info=True)
             if self.getRefs:
-                self.gather_refs(dom)
+                try:
+                    self.gather_refs(dom)
+                except Exception, e:
+                    self._logger.warn('%s: unable to gather refs: %s',
+                                    self._cname, exc_info=True)
             data = self.parse_dom(dom)
         else:
             data = {}
-        data = self.postprocess_data(data)
+        try:
+            data = self.postprocess_data(data)
+        except Exception, e:
+            self._logger.error('%s: caught exception postprocessing data',
+                                self._cname, exc_info=True)
         if self._containsObjects:
             self.set_objects_params(data)
         data = self.add_refs(data)
         return data
 
+    def _build_empty_dom(self):
+        from bsouplxml import _bsoup
+        return _bsoup.BeautifulSoup('')
+
     def get_dom(self, html_string):
-        return self.fromstring(html_string)
+        """Return a dom object, from the given string."""
+        try:
+            dom = self.fromstring(html_string)
+            if dom is None:
+                dom = self._build_empty_dom()
+                self._logger.error('%s: using a fake empty DOM', self._cname)
+            return dom
+        except Exception, e:
+            self._logger.error('%s: caught exception parsing DOM',
+                                self._cname, exc_info=True)
+            return self._build_empty_dom()
 
     def xpath(self, element, path):
-        xpath_result = element.xpath(path)
-        if self._is_xml_unicode:
-            return xpath_result
-
-        result = []
-        for item in xpath_result:
-            if isinstance(item, str):
-                item = unicode(item)
-            result.append(item)
-        return result
+        """Return elements matching the given XPath."""
+        try:
+            xpath_result = element.xpath(path)
+            if self._is_xml_unicode:
+                return xpath_result
+            result = []
+            for item in xpath_result:
+                if isinstance(item, str):
+                    item = unicode(item)
+                result.append(item)
+            return result
+        except Exception, e:
+            self._logger.error('%s: caught exception extracting XPath "%s"',
+                                self._cname, path, exc_info=True)
+            return []
 
     def tostring(self, element):
+        """Convert the element to a string."""
         if isinstance(element, (unicode, str)):
             return unicode(element)
         else:
-            return self._tostring(element, encoding=unicode)
+            try:
+                return self._tostring(element, encoding=unicode)
+            except Exception, e:
+                self._logger.error('%s: unable to convert to string',
+                                    self._cname, exc_info=True)
+                return u''
 
     def clone(self, element):
+        """Clone an element."""
         return self.fromstring(self.tostring(element))
 
     def preprocess_string(self, html_string):
         """Here we can modify the text, before it's parsed."""
-        if len(html_string) == 0:
+        if not html_string:
             return html_string
         try:
             preprocessors = self.preprocessors
@@ -494,7 +560,12 @@ class DOMParserBase(object):
             elif isinstance(src, str):
                 html_string = html_string.replace(src, sub)
             elif callable(src):
-                html_string = src(html_string)
+                try:
+                    html_string = src(html_string)
+                except Exception, e:
+                    _msg = '%s: caught exception preprocessing html'
+                    self._logger.error(_msg, self._cname, exc_info=True)
+                    continue
         ##print html_string.encode('utf8')
         return html_string
 
@@ -537,7 +608,12 @@ class DOMParserBase(object):
                     normalizer = extractor.group_key_normalize
                     if normalizer is not None:
                         if callable(normalizer):
-                            group_key = normalizer(group_key)
+                            try:
+                                group_key = normalizer(group_key)
+                            except Exception, e:
+                                _m = '%s: unable to apply group_key normalizer'
+                                self._logger.error(_m, self._cname,
+                                                    exc_info=True)
                     group_elements = self.xpath(group, extractor.path)
                     elements.extend([(group_key, element)
                                      for element in group_elements])
@@ -551,6 +627,7 @@ class DOMParserBase(object):
                             if not value:
                                 data[field] = None
                             else:
+                                # XXX: use u'' , to join?
                                 data[field] = ''.join(value)
                     else:
                         data = self.xpath(element, attr.path)
@@ -562,13 +639,21 @@ class DOMParserBase(object):
                         continue
                     attr_postprocess = attr.postprocess
                     if callable(attr_postprocess):
-                        data = attr_postprocess(data)
+                        try:
+                            data = attr_postprocess(data)
+                        except Exception, e:
+                            _m = '%s: unable to apply attr postprocess'
+                            self._logger.error(_m, self._cname, exc_info=True)
                     key = attr.key
                     if key is None:
                         key = group_key
                     elif key.startswith('.'):
                         # assuming this is an xpath
-                        key = self.xpath(element, key)[0]
+                        try:
+                            key = self.xpath(element, key)[0]
+                        except IndexError:
+                            self._logger.error('%s: XPath returned no items',
+                                                self._cname, exc_info=True)
                     elif key.startswith('self.'):
                         key = getattr(self, key[5:])
                     if attr.multi:

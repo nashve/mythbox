@@ -58,4 +58,4 @@
 #
 # GET_FREE_RECORDER_LIST => '0' | cardID1 cardID2 cardIDn 
 #
-#
+# XXX
