@@ -1,0 +1,27 @@
+#Tue May 18 10:37:14 CDT 2010
+eclipse.preferences.version=1
+encoding//resources/lib/BeautifulSoup/BeautifulSoupTests.py=UTF-8
+encoding//resources/lib/mysql-connector-python/examples/config.py=utf-8
+encoding//resources/lib/mysql-connector-python/examples/engines.py=utf-8
+encoding//resources/lib/mysql-connector-python/examples/inserts.py=utf-8
+encoding//resources/lib/mysql-connector-python/examples/transaction.py=utf-8
+encoding//resources/lib/mysql-connector-python/examples/unicode.py=utf-8
+encoding//resources/lib/mysql-connector-python/examples/warnings.py=utf-8
+encoding//resources/lib/mysql-connector-python/mysql/connector/__init__.py=utf-8
+encoding//resources/lib/mysql-connector-python/mysql/connector/connection.py=utf-8
+encoding//resources/lib/mysql-connector-python/mysql/connector/constants.py=utf-8
+encoding//resources/lib/mysql-connector-python/mysql/connector/conversion.py=utf-8
+encoding//resources/lib/mysql-connector-python/mysql/connector/cursor.py=utf-8
+encoding//resources/lib/mysql-connector-python/mysql/connector/mysql.py=utf-8
+encoding//resources/lib/mysql-connector-python/mysql/connector/protocol.py=utf-8
+encoding//resources/lib/mysql-connector-python/newunits.py=utf-8
+encoding//resources/lib/mysql-connector-python/setup.py=utf-8
+encoding//resources/lib/mysql-connector-python/unittests.py=utf-8
+encoding//resources/lib/odict/odict.py=UTF-8
+encoding//resources/lib/themoviedb/test_tmdb.py=utf-8
+encoding//resources/lib/themoviedb/tmdb.py=utf-8
+encoding//resources/lib/threadpool/src/threadpool.py=UTF-8
+encoding//resources/lib/tvdb_api/cache.py=utf-8
+encoding//resources/lib/tvdb_api/tvdb_api.py=utf-8
+encoding//resources/src/mythbox/fanart.py=utf-8
+encoding//resources/test/mythboxtest/test_fanart.py=utf-8
