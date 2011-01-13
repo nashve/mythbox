@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?eclipse-pydev version="1.0"?>
+
+<pydev_project>
+<pydev_property name="org.python.pydev.PYTHON_PROJECT_VERSION">python 2.4</pydev_property>
+<pydev_pathproperty name="org.python.pydev.PROJECT_SOURCE_PATH">
+<path>/mythbox-dharma/resources/test</path>
+<path>/mythbox-dharma/resources/itest</path>
+<path>/mythbox-dharma/resources/lib/decorator</path>
+<path>/mythbox-dharma/resources/lib/mockito</path>
+<path>/mythbox-dharma/resources/lib/odict</path>
+<path>/mythbox-dharma/resources/lib/pyxcoder</path>
+<path>/mythbox-dharma/resources/lib/BeautifulSoup</path>
+<path>/mythbox-dharma/resources/lib/tvdb_api</path>
+<path>/mythbox-dharma/resources/lib/themoviedb</path>
+<path>/mythbox-dharma/resources/lib/elementtree</path>
+<path>/mythbox-dharma/resources/src</path>
+<path>/mythbox-dharma/resources/lib/IMDbPY</path>
+<path>/mythbox-dharma/resources/lib/simplejson</path>
+<path>/mythbox-dharma/resources/lib/mysql-connector-python</path>
+<path>/mythbox-dharma/resources/lib/htmltestrunner</path>
+<path>/mythbox-dharma/resources/lib/feedparser</path>
+<path>/mythbox-dharma/resources/lib/python-twitter</path>
+<path>/mythbox-dharma/resources/lib/twisted</path>
+<path>/mythbox-dharma/resources/lib/zope.interface</path>
+<path>/mythbox-dharma/resources/lib/unittest2</path>
+<path>/mythbox-dharma/resources/lib/tvrage</path>
+</pydev_pathproperty>
+<pydev_property name="org.python.pydev.PYTHON_PROJECT_INTERPRETER">Default</pydev_property>
+</pydev_project>
